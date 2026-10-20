@@ -1,0 +1,75 @@
+name: Bench submissions
+
+# A player opens a "Submit a bench" issue (the bench maker pre-fills it). This checks the code with the solver
+# and replies. Adding the "accepted" label saves the bench to community/benches/, commits it, and redeploys.
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event.action != 'labeled' && contains(github.event.issue.body, 'BW1-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check the code
+        run: node tools/community.js issue
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+      - name: Reply
+        run: gh issue comment "$NUMBER" --body-file community-report.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+
+  accept:
+    if: github.event.action == 'labeled' && github.event.label.name == 'accepted' && contains(github.event.issue.body, 'BW1-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: community-accept
+    permissions:
+      contents: write
+      issues: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check and save the bench
+        run: node tools/community.js issue --accept
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+      - name: Commit and redeploy
+        if: hashFiles('community-id.txt') != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add community/benches
+          git commit -m "Add community bench $(cat community-id.txt) (#$NUMBER)"
+          git push
+          # pushes made by this token don't start other workflows, so start the deploy directly
+          gh workflow run deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+      - name: Reply
+        run: |
+          gh issue comment "$NUMBER" --body-file community-report.md
+          if [ -f community-id.txt ]; then gh issue close "$NUMBER" --reason completed; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}

@@ -1,0 +1,73 @@
+name: Verify and deploy
+
+# Every push to main: check every campaign and community bench, build the game, publish it on GitHub Pages,
+# and (once it's set up, see README "Publish on itch.io") push the same build to itch.io with butler.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify every bench is solvable
+        run: npm run verify
+      - name: Build the game and the itch.io package
+        run: npm run itch
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: itch
+          path: itch-build/html5
+
+  pages:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  itch:
+    # needs the BUTLER_API_KEY secret and the ITCH_GAME variable (for example jalapenoseed/beamwright)
+    if: github.event_name != 'pull_request' && vars.ITCH_GAME != ''
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: itch
+          path: html5
+      - name: Install butler
+        run: |
+          curl -sSL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler && chmod +x butler/butler && ./butler/butler -V
+      - name: Push to itch.io
+        run: ./butler/butler push html5 "$ITCH_GAME:html5" --userversion "1.$GITHUB_RUN_NUMBER"
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCH_GAME: ${{ vars.ITCH_GAME }}

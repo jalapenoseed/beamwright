@@ -1,0 +1,29 @@
+name: Submit a bench
+description: Send in a bench you made in the bench maker. Accepted benches ship in the game for everyone.
+title: "Bench: "
+labels: ["bench submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Make a bench in the **bench maker**, press **check**, then open **bench settings** and press **submit**. That fills in this form for you.
+
+        A bot checks every code with the same solver that set par for the campaign, and replies here within a minute or two. If it's solvable, a maintainer plays it and adds the `accepted` label, and it goes into the game's **community benches** on the next deploy.
+  - type: textarea
+    id: code
+    attributes:
+      label: Share code
+      description: The code from bench settings. It starts with BW1-
+      placeholder: BW1-…
+    validations:
+      required: true
+  - type: input
+    id: credit
+    attributes:
+      label: Credit
+      description: The name shown next to your bench in the game. Leave it empty to use the name in the code.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: The idea behind it, or a hint you'd like it to have.

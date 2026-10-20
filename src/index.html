@@ -1,0 +1,300 @@
+<title>Beamwright</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:ital,wght@0,400;0,700;1,400&family=B612+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: one screen of optical breadboard. A WebGL layer paints the table, the light and every key,
+   pocket and panel; the DOM only supplies text and hit areas (marked with data-plate). */
+:root {
+  --ink: #e8ebef;        /* laser-etched marking on black anodize */
+  --ink-dim: #bcc3cb;
+  --ink-faint: #7f8690;
+  --vfd: #ffc366;        /* vacuum-fluorescent readout */
+  --vfd-glow: rgba(255, 176, 74, .55);
+  --void: #191b1f;
+  --f-sans: "B612", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --f-mono: "B612 Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--void); color: var(--ink); font-family: var(--f-sans);
+  overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+#app {
+  position: relative; z-index: 1; height: 100%;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible { outline: 1px dashed var(--vfd); outline-offset: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.etch { text-shadow: 0 -1px 0 rgba(0, 0, 0, .9), 0 1px 0 rgba(255, 255, 255, .045); }
+
+/* keys: shader draws the raised anodized cap; .led keys get an indicator lamp on the left */
+.key {
+  height: 38px; padding: 0 15px; display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--f-mono); font-size: 12.5px; letter-spacing: .01em; color: var(--ink); white-space: nowrap;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .9);
+}
+.key.led { padding-left: 26px; }
+.key.is-down { transform: translateY(1px); }
+.key svg { width: 15px; height: 15px; flex: none; }
+.key.big { height: 46px; padding: 0 20px; font-size: 14px; }
+.key.big.led { padding-left: 32px; }
+.key.accent { color: #2a1803; font-weight: 700; text-shadow: 0 1px 0 rgba(255, 244, 220, .55); }
+.key.attn { color: var(--vfd); text-shadow: 0 0 8px var(--vfd-glow); }
+
+/* VFD window: recessed smoked glass with glowing amber digits */
+.vfd {
+  height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 12px; min-width: 0;
+  font-family: var(--f-mono); color: var(--vfd); text-shadow: 0 0 6px var(--vfd-glow), 0 0 14px rgba(255, 150, 50, .25);
+  white-space: nowrap;
+}
+.vfd .no { font-size: 15px; font-weight: 700; letter-spacing: .06em; }
+.vfd .nm { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+.vfd .sub { font-size: 11.5px; opacity: .62; }
+.vfd em { font-style: normal; font-weight: 700; }
+
+.bar { display: flex; align-items: center; gap: 10px; padding-block: 12px 8px; min-width: 0; }
+.bar .vfd { flex: 0 1 auto; }
+.bar .right { display: flex; gap: 8px; flex: none; margin-left: auto; }
+body.has-ov #app, body.has-ov #title { visibility: hidden; }
+
+#stage { position: relative; min-height: 0; grid-row: 2; touch-action: none; }
+#stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; visibility: hidden; }
+
+.drawer { padding-block: 4px max(12px, env(safe-area-inset-bottom, 0px)); display: grid; gap: 10px; }
+.status { min-height: 40px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14.5px; line-height: 1.45; color: var(--ink-dim); max-width: 78ch; }
+.status b { color: var(--ink); font-weight: 400; }
+.status .vfd { height: 34px; }
+.status .key { height: 34px; padding: 0 12px; }
+
+/* parts rack: machined pockets */
+.rack { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 6px; touch-action: pan-x; scrollbar-width: none; }
+.rack::-webkit-scrollbar { display: none; }
+.pocket {
+  flex: none; width: 86px; height: 78px; display: grid; grid-template-rows: 1fr auto; justify-items: center;
+  padding: 6px 4px 7px; position: relative; touch-action: none;
+}
+.pocket canvas { width: 64px; height: 40px; display: block; pointer-events: none; }
+.pocket .nm { font-size: 10.5px; line-height: 1.15; color: var(--ink); text-align: center; }
+.pocket .ct { position: absolute; top: 5px; right: 7px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); }
+.pocket.empty canvas, .pocket.empty .nm { opacity: .3; }
+.pocket.on .nm, .pocket.on .ct { color: var(--vfd); }
+
+/* overlays: the shader dims the table behind them and draws the panel plates */
+.ov { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; overflow-y: auto;
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.panel { width: min(560px, calc(100vw - 32px)); padding: 30px 30px 26px; display: grid; gap: 16px; }
+.panel.wide { width: min(760px, calc(100vw - 32px)); }
+.legend { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-dim); }
+.legend a { color: var(--vfd); }
+.panel h2 { margin: 0; font-weight: 400; font-size: 24px; letter-spacing: .01em; text-wrap: balance; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.leds { display: flex; gap: 12px; align-items: center; }
+.leds i { width: 14px; height: 14px; display: block; }
+
+/* title */
+#title { place-items: end center; padding-bottom: max(9vh, env(safe-area-inset-bottom, 0px)); }
+.title-wrap { display: grid; gap: 16px; justify-items: center; text-align: center; max-width: 640px; }
+.presents { font-family: var(--f-mono); font-size: 12px; color: var(--ink-dim); }
+.presents b { color: var(--ink); font-weight: 400; }
+#logoSlot { width: min(92vw, 860px); height: clamp(70px, 15vw, 150px); }
+.sub { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink-dim); max-width: 46ch; text-wrap: balance; }
+.title-wrap .row { justify-content: center; }
+
+/* menus */
+.panel.narrow { width: min(400px, calc(100vw - 32px)); }
+.menu { display: grid; gap: 10px; }
+.menu .key { justify-content: flex-start; width: 100%; height: 44px; }
+.menu .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.menu .key:disabled { color: var(--ink-faint); cursor: default; }
+.mk-only { display: none; }
+body.in-maker .mk-only { display: inline-flex; }
+body.in-maker .play-only { display: none; }
+.form { display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-dim); }
+.field > span { font-family: var(--f-mono); font-size: 11.5px; }
+.input { height: 38px; padding: 0 12px; border: 0; background: transparent; color: var(--ink); font: 15px var(--f-sans); outline: none; width: 100%; min-width: 0; }
+.input.mono { font: 13px var(--f-mono); color: var(--vfd); }
+.input:focus-visible { outline: 1px dashed var(--vfd); outline-offset: 2px; }
+.stepper { display: inline-flex; gap: 8px; align-items: center; margin-right: 14px; }
+.stepper.grow { display: flex; margin: 0; }
+.stepper .key { width: 38px; justify-content: center; padding: 0; font-size: 16px; }
+.stepper .vfd { min-width: 92px; justify-content: center; }
+.invgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.inv { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; font-size: 13px; color: var(--ink); }
+.inv .key { width: 32px; height: 32px; padding: 0; justify-content: center; }
+.inv .n { font-family: var(--f-mono); color: var(--vfd); min-width: 18px; text-align: center; }
+.tool canvas { width: 64px; height: 40px; }
+.no-gl .input { background: #0b0a09; border-radius: 6px; }
+
+/* gate and ident */
+#gate { place-items: center; }
+#ident { place-items: end center; padding-bottom: 22vh; pointer-events: none; }
+.ident-name {
+  font-family: var(--f-mono); font-size: clamp(15px, 2.6vw, 26px); letter-spacing: .28em; text-transform: uppercase; color: #fff4dc;
+  text-shadow: 0 0 10px rgba(255, 200, 110, .7), 0 0 30px rgba(255, 170, 60, .35); opacity: 0; transform: translateY(6px);
+  transition: opacity .8s ease, transform .8s ease; text-align: center; padding: 0 16px;
+}
+.ident-name.show { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .ident-name { transition: none; } }
+
+/* bench picker */
+.picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.chap { grid-column: 1 / -1; display: flex; gap: 12px; align-items: baseline; padding-top: 10px; font-size: 15px; }
+.chap:first-child { padding-top: 0; }
+.chap span { font-family: var(--f-mono); font-size: 11.5px; color: var(--vfd); text-shadow: 0 0 6px var(--vfd-glow); }
+.slot { height: 76px; padding: 10px 12px; text-align: left; display: grid; grid-template-rows: auto 1fr auto; gap: 2px; }
+.slot .n { font-family: var(--f-mono); font-size: 12px; color: var(--ink-dim); }
+.slot .t { font-size: 14px; color: var(--ink); }
+.slot .s { display: flex; gap: 6px; height: 8px; }
+.slot .s i { width: 8px; height: 8px; display: block; }
+.slot:disabled { cursor: default; }
+.slot:disabled .t, .slot:disabled .n { color: var(--ink-faint); }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+
+/* fallback when WebGL 2 is unavailable: plain CSS stand-ins for the shader plates */
+.no-gl #stage canvas { visibility: visible; }
+.no-gl #stage #bv { mix-blend-mode: screen; }
+.no-gl body, body.no-gl { background: #1d2025; }
+.no-gl [data-plate="key"] { background: #1c1f24; border: 1px solid #2c3036; border-radius: 6px; }
+.no-gl [data-plate="pocket"] { background: #0c0d10; border-radius: 8px; box-shadow: inset 0 2px 6px #000; }
+.no-gl [data-plate="pocket"].on { box-shadow: inset 0 0 0 1px var(--vfd); }
+.no-gl [data-plate="window"] { background: #090807; border-radius: 6px; box-shadow: inset 0 2px 6px #000; }
+.no-gl [data-plate="panel"] { background: #16181c; border: 1px solid #2c3036; border-radius: 10px; }
+.no-gl [data-plate="accent"] { background: linear-gradient(#ffd27a, #e8a040); border-radius: 7px; box-shadow: 0 0 18px rgba(255, 180, 80, .35); }
+.no-gl [data-plate="led"] { background: #2a1a0c; border-radius: 50%; }
+.no-gl [data-plate="led"].on { background: var(--vfd); box-shadow: 0 0 8px var(--vfd); }
+.no-gl .ov { background: rgba(8, 9, 11, .7); }
+
+body.on-title .bar, body.on-title .drawer { display: none; }
+.show-sm { display: none; }
+@media (max-width: 560px) {
+  .hide-sm { display: none; }
+  .show-sm { display: block; }
+  .vfd .no { font-size: 14px; } .vfd .nm { font-size: 13px; }
+  .key { padding: 0 11px; }
+  .vfd .sub { display: none; }
+  .pocket { width: 76px; }
+  .panel { padding: 24px 20px 20px; }
+}
+</style>
+
+<canvas id="gl" aria-hidden="true"></canvas>
+<div id="app">
+  <header class="bar">
+    <button class="key" data-plate="key" id="menuBtn" aria-label="Menu" aria-keyshortcuts="Escape">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
+      <span class="hide-sm">menu</span>
+    </button>
+    <div class="vfd" data-plate="window" aria-live="polite"><span class="no" id="lvlNum">01</span><span class="nm" id="lvlName">First Light</span><span class="sub" id="lvlPar"></span></div>
+    <div class="right">
+      <button class="key mk-only" data-plate="key" id="mkBench" aria-label="Bench settings"><span>bench</span></button>
+      <button class="key mk-only" data-plate="key" id="mkCheck" aria-label="Check the bench is solvable"><span>check</span></button>
+      <button class="key mk-only" data-plate="key" id="mkTest" aria-label="Test play this bench"><span>test</span></button>
+      <button class="key play-only" data-plate="key" id="hintBtn" aria-label="Hint"><svg class="show-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2a4 4 0 0 0-2.3 7.3c.4.3.7.8.7 1.3V12h3.2v-1.4c0-.5.3-1 .7-1.3A4 4 0 0 0 8 2zM6.4 14h3.2"/></svg><span id="hintTxt" class="hide-sm">hint</span></button>
+      <button class="key play-only" data-plate="key" id="resetBtn" aria-label="Clear the bench"><svg class="show-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.5v3h3"/></svg><span class="hide-sm">clear</span></button>
+      <button class="key led" data-plate="key" id="soundBtn" aria-label="Sound" aria-pressed="true"><svg class="show-sm" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5"/></svg><span class="hide-sm">sound</span></button>
+    </div>
+  </header>
+  <main id="stage" aria-label="Optics bench">
+    <canvas id="cv"></canvas>
+    <canvas id="bv"></canvas>
+  </main>
+  <footer class="drawer">
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="rack" id="parts" data-clip></div>
+  </footer>
+</div>
+
+<div class="ov" id="gate">
+  <div class="title-wrap">
+    <button class="key big accent" data-plate="accent" id="gateBtn">switch on</button>
+    <p class="sub etch">Sound on. Headphones make the light sound better.</p>
+  </div>
+</div>
+
+<div class="ov" id="ident" hidden aria-label="Jalapeño Seed Productions">
+  <div class="ident-name" id="identName">Jalapeño Seed Productions</div>
+</div>
+
+<div class="ov" id="title" hidden>
+  <div class="title-wrap" data-plate="shade">
+    <div class="presents etch"><b>Jalapeño Seed Productions</b> presents</div>
+    <h1 class="sr">Beamwright</h1>
+    <div id="logoSlot" aria-hidden="true"></div>
+    <p class="sub etch">An optics bench puzzle. Bounce, bend, split and focus light until every photocell is lit.</p>
+    <div class="row">
+      <button class="key big accent" data-plate="accent" id="startBtn">switch on the bench</button>
+      <button class="key big" data-plate="key" id="titleLevels">choose bench</button>
+      <button class="key big" data-plate="key" id="titleFree">free bench</button>
+      <button class="key big" data-plate="key" id="titleMaker">bench maker</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov modal" id="levels" hidden data-clip>
+  <div class="panel wide" data-plate="panel">
+    <div class="head"><div><div class="legend etch">optics lab · 22 benches</div><h2 class="etch">Choose a bench</h2></div><button class="key" data-plate="key" id="levelsClose">close</button></div>
+    <div class="picker" id="levelGrid"></div>
+  </div>
+</div>
+
+<div class="ov modal" id="win" hidden>
+  <div class="panel" data-plate="panel">
+    <div class="legend etch" id="winEyebrow">bench 01 · all cells lit</div>
+    <h2 class="etch" id="winTitle">Circuit complete</h2>
+    <div class="leds" id="winStars" aria-label="Rating"></div>
+    <div class="vfd" data-plate="window"><span>parts <em id="wPieces">1</em></span><span>par <em id="wPar">1</em></span><span>delivered <em id="wLm">100 lm</em></span></div>
+    <div class="row"><button class="key" data-plate="key" id="winStay">keep tinkering</button><button class="key big accent" data-plate="accent" id="winNext">next bench →</button></div>
+  </div>
+</div>
+
+<div class="ov modal" id="pause" hidden>
+  <div class="panel narrow" data-plate="panel" role="dialog" aria-labelledby="pauseTitle">
+    <div class="legend etch" id="pauseLegend">bench 01 · first light</div>
+    <h2 class="etch" id="pauseTitle">Paused</h2>
+    <div class="menu" id="pauseMenu"></div>
+  </div>
+</div>
+
+<div class="ov modal" id="makerov" hidden data-clip>
+  <div class="panel wide" data-plate="panel" role="dialog" aria-labelledby="mkPanelTitle">
+    <div class="head"><div><div class="legend etch">bench maker</div><h2 class="etch" id="mkPanelTitle">Bench settings</h2></div><button class="key" data-plate="key" id="mkDone">done</button></div>
+    <div class="form">
+      <label class="field"><span class="etch">name</span><input id="mkName" class="input" data-plate="window" maxlength="28" autocomplete="off"></label>
+      <div class="field"><span class="etch">size</span>
+        <div class="stepper"><button class="key" data-plate="key" data-sz="w-">−</button><span class="vfd" data-plate="window" id="mkW">9 wide</span><button class="key" data-plate="key" data-sz="w+">+</button></div>
+        <div class="stepper"><button class="key" data-plate="key" data-sz="h-">−</button><span class="vfd" data-plate="window" id="mkH">7 tall</span><button class="key" data-plate="key" data-sz="h+">+</button></div>
+      </div>
+      <label class="field"><span class="etch">tip for the player</span><input id="mkTip" class="input" data-plate="window" maxlength="140" autocomplete="off" placeholder="optional"></label>
+      <div class="field"><span class="etch">parts the player gets</span><div class="invgrid" id="mkInv"></div></div>
+      <div class="field"><span class="etch">share code</span>
+        <div class="stepper grow"><input id="mkCode" class="input mono" data-plate="window" readonly><button class="key" data-plate="key" id="mkCopy">copy</button></div>
+      </div>
+      <div class="field" id="mkSubmitRow"><span class="etch">share with everyone</span>
+        <div class="stepper grow"><input id="mkAuthor" class="input" data-plate="window" maxlength="32" autocomplete="off" placeholder="your name, for the credit"><button class="key accent" data-plate="accent" id="mkSubmit">submit</button></div>
+        <div class="legend etch" id="mkSubmitMsg"></div>
+      </div>
+      <div class="row"><button class="key" data-plate="key" id="mkDelete">delete bench</button><button class="key" data-plate="key" id="mkNewFrom">new bench</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov modal" id="codeov" hidden>
+  <div class="panel narrow" data-plate="panel" role="dialog" aria-labelledby="codeTitle">
+    <div class="legend etch">my benches</div>
+    <h2 class="etch" id="codeTitle">Open a bench code</h2>
+    <input id="codeIn" class="input mono" data-plate="window" placeholder="BW1-…" autocomplete="off" spellcheck="false">
+    <div class="legend etch" id="codeMsg">Paste a code someone shared with you.</div>
+    <div class="row"><button class="key" data-plate="key" id="codeCancel">cancel</button><button class="key big accent" data-plate="accent" id="codeLoad">open in maker →</button></div>
+  </div>
+</div>
+
+<!--SCRIPTS-->

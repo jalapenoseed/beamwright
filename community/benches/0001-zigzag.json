@@ -1,0 +1,87 @@
+{
+  "id": "0001-zigzag",
+  "name": "Zigzag",
+  "author": "Jalapeño Seed Productions",
+  "added": "2026-10-20",
+  "w": 9,
+  "h": 7,
+  "tip": "Two beams, two walls, and each beam has to find a way around.",
+  "sources": [
+    {
+      "x": 0,
+      "y": 1,
+      "a": 0
+    },
+    {
+      "x": 0,
+      "y": 5,
+      "a": 0,
+      "color": "R"
+    }
+  ],
+  "targets": [
+    {
+      "x": 8,
+      "y": 5,
+      "need": 40
+    },
+    {
+      "x": 8,
+      "y": 1,
+      "need": 3,
+      "color": "R",
+      "r": 0.42
+    }
+  ],
+  "walls": [
+    [
+      4,
+      0
+    ],
+    [
+      4,
+      1
+    ],
+    [
+      4,
+      2
+    ],
+    [
+      5,
+      4
+    ],
+    [
+      5,
+      5
+    ],
+    [
+      5,
+      6
+    ]
+  ],
+  "fixed": [],
+  "inv": {
+    "mirror": 4
+  },
+  "par": 3,
+  "sol": [
+    {
+      "type": "mirror",
+      "x": 1,
+      "y": 5,
+      "a": 165
+    },
+    {
+      "type": "mirror",
+      "x": 6,
+      "y": 2,
+      "a": 165
+    },
+    {
+      "type": "mirror",
+      "x": 8,
+      "y": 2,
+      "a": 45
+    }
+  ]
+}
