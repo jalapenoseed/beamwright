@@ -25,7 +25,7 @@ Hand this file and the repo zip (`beamwright.zip`) to the next assistant. It cov
 - **Navigation.** Esc or the menu key opens a pause menu (resume, restart, prev/next, choose bench, maker, main menu). Every menu works from the keyboard, and the picker moves with the arrow keys.
 - **Intro.** A "switch on the bench" gate (needed for the audio unlock) leads into the Jalapeño Seed Productions ident: a beam hits a seed, a jalapeño traces itself in light, and a sting plays. Then the title screen, with "BEAMWRIGHT" written in light.
 - **Music.** A title theme at 112 BPM and a bench-picker track at 84 BPM, both synthesized live.
-- **Trailer.** `npm run trailer` films a 32-second 1280×720 trailer from the game using Playwright and ffmpeg.
+- **Trailer.** `npm run trailer` films a 38-second 1280×720 trailer from the game using Playwright and ffmpeg. It includes a bench-maker scene and was re-rendered after the emitter, photocell and win-sound changes.
 
 ## Code map
 
@@ -96,7 +96,7 @@ To do:
    - The submission workflows have only been simulated locally, so watch the first real run.
 2. **Upload to itch.io** using `itch/page.md`: HTML kind, 1280×720 embed, mobile friendly, fullscreen button. Optionally add the `BUTLER_API_KEY` secret and the `ITCH_GAME` variable so every push deploys to itch.
 3. **Retake the screenshots and cover** in a normal browser. The ones in `itch/` were rendered with fallback fonts because Google Fonts couldn't load where they were made.
-4. **Re-render the trailer** (`npm run trailer`). It predates the new win sound and the new emitter and cell art. Upload it to YouTube for the itch page.
+4. **Upload the trailer** (`dist/trailer.mp4`, re-rendered with the new art and win sound) to YouTube for the itch page.
 5. **Sample community bench.** `community/benches/0001-zigzag.json` is credited to the studio and was used to test the pipeline. Keep it or delete it.
 6. Ideas not built yet:
    - Mirage zones in the bench maker.

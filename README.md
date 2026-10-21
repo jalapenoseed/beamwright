@@ -69,7 +69,7 @@ There are 22 benches in two chapters, plus a **Free bench** sandbox with every p
   - The **title theme** runs at 112 BPM, the same tempo as the light drum machine. It opens on pads and an arpeggio, then bass and drums come in, then a glass-bell melody.
   - The **bench picker** has a calmer 84 BPM track.
   - Music fades out when a bench starts, because the light takes over the rhythm there.
-- **Trailer:** `npm run trailer` films a 32-second, 1280×720 trailer straight from the game. It drives the build frame by frame on a virtual clock, scripts the scenes through `window.__bw`, logs every sound the game makes, renders the soundtrack offline with the same synth, and muxes it with ffmpeg. It needs Playwright (`npm i -D playwright`) and ffmpeg.
+- **Trailer:** `npm run trailer` films a 38-second, 1280×720 trailer straight from the game: the ident, the title, three campaign benches, the free bench as a drum machine, and a bench being built in the bench maker and then played. It drives the build frame by frame on a virtual clock, scripts the scenes through `window.__bw`, logs every sound the game makes, renders the soundtrack offline with the same synth, and muxes it with ffmpeg. It needs Playwright (`npm i -D playwright`) and ffmpeg.
 
 ## Publish on itch.io
 

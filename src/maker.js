@@ -307,4 +307,4 @@ function makerSlots(g) {
   cb.innerHTML = '<span class="n">CODE</span><span class="t">Open a code</span><span class="s" style="font-size:11px;color:var(--ink-dim);height:auto">a bench someone shared</span>';
   cb.onclick = openCode; g.appendChild(cb);
 }
-Object.assign(window.__bw, { MK, openMaker, checkBench, testBench, encodeBench, decodeBench, openPause });
+Object.assign(window.__bw, { MK, changed, openMaker, checkBench, testBench, encodeBench, decodeBench, openPause });

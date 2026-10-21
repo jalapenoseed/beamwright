@@ -3,7 +3,7 @@
 // scripts the scenes through the game's window.__bw hooks, logs every sound the game makes, renders the
 // soundtrack offline with the same synth, and muxes it all with ffmpeg.
 //
-//   npm run build && node tools/trailer.js [--out dist/trailer.mp4] [--fps 24] [--width 1280] [--height 720] [--from 0 --to 32]
+//   npm run build && node tools/trailer.js [--out dist/trailer.mp4] [--fps 24] [--width 1280] [--height 720] [--from 0 --to 38.4]
 //
 // Needs: Playwright (npm i -D playwright, with a Chromium) and ffmpeg on PATH.
 const fs = require('fs');
@@ -15,7 +15,7 @@ const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ?
 const root = path.join(__dirname, '..');
 const FPS = +arg('fps', 24), W = +arg('width', 1280), H = +arg('height', 720);
 const OUT = path.resolve(arg('out', path.join(root, 'dist', 'trailer.mp4')));
-const FROM = +arg('from', 0), TO = +arg('to', 32);
+const FROM = +arg('from', 0), TO = +arg('to', 38.4);
 // --audio-only <video.mp4>: re-run the script without filming, re-render the soundtrack, and swap it into that video
 const AUDIO_ONLY = arg('audio-only', null);
 const work = fs.mkdtempSync(path.join(require('os').tmpdir(), 'bw-trailer-'));
@@ -45,9 +45,22 @@ const SCENES = [
   { at: 25.5, run: "drop('splitter', 3, 6, 0, 45)" },
   { at: 25.8, run: "drop('cmirror', 3, 1, 90, 90)" },
   { at: 26.1, run: "drop('droplet', 7, 1, 0, 0)" },
-  { at: 28.0, name: 'end', run: 'endCard()' },
+  // the bench maker: a bench builds itself, then gets played
+  { at: 28.0, name: 'maker', run: 'maker()', caption: ['Build your own.', 'bench maker · share codes · community benches'] },
+  { at: 28.4, run: "mk('source', { x: 0, y: 3, a: 0 })" },
+  { at: 28.8, run: "mk('cell', { x: 8, y: 1, need: 20 })" },
+  { at: 29.1, run: "mk('cell', { x: 8, y: 5, need: 20 })" },
+  { at: 29.5, run: "mk('wall', [5, 2])" },
+  { at: 29.65, run: "mk('wall', [5, 3])" },
+  { at: 29.8, run: "mk('wall', [5, 4])" },
+  { at: 30.6, run: 'B.testBench(); B.layout()' },
+  { at: 30.9, run: "drop('splitter', 2, 3, 90, 135)" },
+  { at: 31.5, run: "drop('mirror', 2, 1, 90, 135)" },
+  { at: 32.1, run: "drop('mirror', 4, 3, 0, 45)" },
+  { at: 32.6, run: "drop('mirror', 4, 5, 0, 45)" },
+  { at: 34.4, name: 'end', run: 'endCard()' },
 ];
-const MUSIC = [{ name: 'title', from: 4.6, to: 32, gains: [[4.6, 1], [9.0, 1], [9.4, 0.55], [27.6, 0.55], [28.2, 1]] }];
+const MUSIC = [{ name: 'title', from: 4.6, to: 38.4, gains: [[4.6, 1], [9.0, 1], [9.4, 0.55], [34.0, 0.55], [34.6, 1], [37.6, 1], [38.4, 0]] }];
 
 // ---------- page-side helpers, injected before the game boots ----------
 const INIT = `
@@ -76,6 +89,16 @@ const SETUP = `
     for (let k = 1; k <= steps; k++) window.__later.push({ t: start + k * 70, fn: () => B.rotatePiece(p, dir) });
   };
   window.__later = [];
+  // the bench maker scene: start from a blank bench and add things one at a time, each selected as it lands
+  window.maker = () => {
+    localStorage.setItem('beamwright.custom', JSON.stringify([{ name: 'Your bench', w: 9, h: 7, tip: '', custom: true, sources: [], targets: [], walls: [], fixed: [], mirage: [], inv: { splitter: 1, mirror: 3 }, sol: [], par: 0 }]));
+    B.openMaker(0); B.layout();
+  };
+  window.mk = (kind, v) => {
+    const L = B.MK.level, list = { source: L.sources, cell: L.targets, wall: L.walls }[kind];
+    list.push(v); B.MK.sel = kind === 'wall' ? null : { kind: kind === 'cell' ? 'target' : 'source', i: list.length - 1 };
+    B.changed(kind === 'wall'); if (kind === 'wall') AU.tick(); else AU.place(880);
+  };
   window.endCard = () => { B.S.screen = 'play'; B.toTitle(); window.__end = performance.now(); };
 `;
 // captions and card text, drawn into the game's object layer so the shader composites them
@@ -104,7 +127,7 @@ const OVERLAY = `
       const end = window.__end != null, e = t - (end ? window.__end : S.titleT0), a = Math.max(0, Math.min(1, (e - 900) / 800));
       ctx.globalAlpha = a; ctx.textAlign = 'center';
       if (!end) { ctx.font = '18px ' + fontMono; ctx.fillStyle = '#e8ebef'; ctx.fillText('Jalapeño Seed Productions presents', V.w / 2, V.h * 0.475); }
-      ctx.font = '20px ' + fontMono; ctx.fillStyle = '#ffc366'; ctx.fillText(end ? '22 benches of real ray-traced light' : 'an optics bench puzzle', V.w / 2, V.h * 0.8);
+      ctx.font = '20px ' + fontMono; ctx.fillStyle = '#ffc366'; ctx.fillText(end ? '22 benches · a bench maker · community benches' : 'an optics bench puzzle', V.w / 2, V.h * 0.8);
       if (end) {
         ctx.font = '700 30px ' + fontSans; ctx.fillStyle = '#f4f1ea'; ctx.fillText('Play free in your browser', V.w / 2, V.h * 0.875);
         ctx.font = '16px ' + fontMono; ctx.fillStyle = '#bcc3cb'; ctx.fillText('a Jalapeño Seed Productions game', V.w / 2, V.h * 0.935);
@@ -161,10 +184,10 @@ const OVERLAY = `
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   if (AUDIO_ONLY) {
-    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', path.resolve(AUDIO_ONLY), '-i', path.join(work, 'audio.wav'), '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', OUT], { stdio: 'inherit' });
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', path.resolve(AUDIO_ONLY), '-i', path.join(work, 'audio.wav'), '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '44100', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', OUT], { stdio: 'inherit' });
     console.log('wrote', OUT); return;
   }
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', path.join(work, 'f%05d.jpg'), '-i', path.join(work, 'audio.wav'),
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', OUT], { stdio: 'inherit' });
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '44100', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', OUT], { stdio: 'inherit' });
   console.log('wrote', path.relative(process.cwd(), OUT), `(${(fs.statSync(OUT).size / 1e6).toFixed(1)} MB)`);
 })();
