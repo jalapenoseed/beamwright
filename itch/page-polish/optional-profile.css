@@ -1,0 +1,8 @@
+/* Optional additions for images/links YOU mark with custom-featured in profile HTML.
+   Standard itch game-grid classes must be checked in the live editor before styling. */
+#wrapper .custom-featured { display: inline-block; max-width: 100%; border: 1px solid #596674; border-radius: 8px; }
+#wrapper .custom-featured:focus-visible { outline: 3px solid #ffc56d; outline-offset: 5px; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  #wrapper .custom-featured { transition: transform 160ms ease, box-shadow 160ms ease; }
+  #wrapper .custom-featured:hover { transform: translateY(-3px); box-shadow: 0 10px 24px #0006; }
+}

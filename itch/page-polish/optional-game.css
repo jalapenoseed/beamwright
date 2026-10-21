@@ -1,0 +1,9 @@
+/* Optional: use only after itch enables custom CSS. No game-frame sizing changes. */
+#wrapper .formatted_description { line-height: 1.7; }
+#wrapper .formatted_description h2 { color: #f2f0e9; margin-top: 1.8em; line-height: 1.25; }
+#wrapper .formatted_description p, #wrapper .formatted_description li { color: #f2f0e9; }
+#wrapper .formatted_description a { color: #ffc56d; text-decoration: underline; text-underline-offset: .18em; }
+#wrapper .formatted_description a:hover { color: #ffe0ad; }
+#wrapper .formatted_description a:focus-visible { outline: 3px solid #ffc56d; outline-offset: 4px; }
+#wrapper .formatted_description hr { border: 0; border-top: 1px solid #596674; margin: 2em 0; }
+#wrapper .formatted_description img { max-width: 100%; height: auto; border: 1px solid #596674; border-radius: 8px; }
