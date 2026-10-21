@@ -397,9 +397,9 @@ function drawStatics() {
   // beam blocks: blackened steel with a machined top
   for (const [x, y] of L.walls || []) {
     g.fillStyle = 'rgba(0,0,0,0.55)'; rr(g, x + 0.09, y + 0.14, 0.88, 0.88, 0.06); g.fill();
-    const wg = g.createLinearGradient(x, y, x + 1, y + 1); wg.addColorStop(0, '#2b2f35'); wg.addColorStop(1, '#121417');
+    const wg = g.createLinearGradient(x, y, x + 1, y + 1); wg.addColorStop(0, '#596b80'); wg.addColorStop(1, '#263445');
     g.fillStyle = wg; rr(g, x + 0.06, y + 0.06, 0.88, 0.88, 0.06); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.09)'; g.lineWidth = 1 / V.cell; g.stroke();
+    g.strokeStyle = 'rgba(215,235,255,0.65)'; g.lineWidth = 1 / V.cell; g.stroke();
     g.strokeStyle = 'rgba(255,255,255,0.035)'; g.beginPath();
     for (let k = 0.2; k < 0.9; k += 0.12) { g.moveTo(x + 0.14, y + k + 0.06); g.lineTo(x + 0.86, y + k + 0.06); }
     g.stroke();
@@ -409,7 +409,7 @@ function drawStatics() {
   if (S.screen === 'play' && V.cell >= 40) {
     setScreen(g);
     g.font = `${Math.max(9, Math.min(11, V.cell * 0.13))}px ${FONT_MONO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = 'rgba(220,225,231,0.5)';
+    g.fillStyle = 'rgba(240,246,255,0.9)';
     for (let x = 0; x < L.w; x++) { const [sx, sy] = w2s(x + 0.5, -0.001); g.fillText(String.fromCharCode(65 + x), V.rot ? sx + 9 : sx, V.rot ? sy : sy - 9); }
     for (let y = 0; y < L.h; y++) { const [sx, sy] = w2s(-0.001, y + 0.5); g.fillText(String(y + 1), V.rot ? sx : sx - 10, V.rot ? sy - 9 : sy); }
   }
@@ -797,6 +797,7 @@ function drawTarget(tg, i, t) {
   const col = tg.color && tg.color !== 'any' ? SPEC[tg.color].rgb : SPEC.W.rgb;
   ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.arc(cx + 0.04, cy + 0.06, R, 0, 7); ctx.fill();
   cellBody(ctx, cx, cy, tg, 1 / V.cell);
+  ctx.strokeStyle = on ? '#ffe5a8' : '#d4e7fa'; ctx.lineWidth = 1.5 / V.cell; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
   // light layer: meter segments, the die glowing, a flash when a pulse lands, a ripple when it switches on
   const f = Math.min(1, lm / tg.need), n = on ? CELL_SEGS : Math.floor(f * CELL_SEGS + 1e-6);
   let flash = 0;
@@ -832,7 +833,7 @@ function drawTarget(tg, i, t) {
 }
 function labelAt(wx, wy, lines, dy = 0.5) {
   const [sx, sy] = w2s(wx, wy);
-  const fs = Math.max(9, Math.min(12, V.cell * 0.14));
+  const fs = Math.max(11, Math.min(13, V.cell * 0.17));
   let y = sy + dy * V.cell + fs;
   for (const [txt, mono, col] of lines) {
     ctx.font = mono ? `${fs - 0.5}px ${FONT_MONO}` : `${fs}px ${FONT_SANS}`;
@@ -976,6 +977,7 @@ function openPause() {
     }
     m.append(key('choose bench', showLevels), key('bench maker', () => openMaker(null)), key('main menu', toTitle));
   }
+  m.append(key('skins & readability', () => SKIN.open()));
   closeModals(); $('#pause').hidden = false; focusFirst('#pauseMenu');
 }
 // Esc closes whatever menu is open, innermost first

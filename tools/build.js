@@ -31,6 +31,7 @@ const scripts = [
   // the bench maker's solver runs in a worker built from the engine and solver sources
   'const WORKER_SRC = ' + JSON.stringify(read('src/engine.js') + '\n' + read('src/solver.js') + '\nonmessage = e => postMessage(SOLVER.solveID(e.data.level, e.data.depth, 3, e.data.budget));') + ';',
   read('src/audio.js'),
+  read('src/skins.js'),
   read('src/gl.js'),
   "(() => {\n'use strict';",
   read('src/game.js'),

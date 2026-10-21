@@ -35,7 +35,9 @@ uniform vec2 uRes; uniform float uDpr, uTime, uDim, uMotion;
 uniform vec4 uStage, uBoard; uniform vec2 uWH; uniform float uShowBoard;
 uniform sampler2D tObj, tBeam, tA, tB;
 uniform vec4 uR[${MAX_RECTS}]; uniform vec4 uM[${MAX_RECTS}]; uniform vec4 uC[${MAX_RECTS}]; uniform int uN;
-const vec3 WARM = vec3(1.0, 0.72, 0.36);
+uniform vec3 uBg, uMetal, uKey, uPanel, uPocket, uAccent;
+uniform float uGlow, uLift, uGrain;
+#define WARM uAccent
 
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float n11(float x){ float i = floor(x), f = fract(x); return mix(h21(vec2(i, 3.7)), h21(vec2(i + 1.0, 3.7)), f * f * (3.0 - 2.0 * f)); }
@@ -66,7 +68,7 @@ vec3 plates(vec3 col, vec2 p, float layer, vec3 spill){
       if (d > 0.0) col *= 1.0 - 0.6 * sh;
       if (d < 0.0) {
         float t = clamp((lp.y + hb.y) / (2.0 * hb.y), 0.0, 1.0);
-        vec3 base = mix(vec3(0.2, 0.21, 0.23), vec3(0.125, 0.132, 0.146), t);
+        vec3 base = mix(uKey * 1.12, uKey * 0.88, t);
         base += (n11(p.y * 2.7 + fi * 9.0) - 0.5) * 0.012;
         if (hov) base *= 1.16;
         if (down) base *= 0.8;
@@ -92,7 +94,7 @@ vec3 plates(vec3 col, vec2 p, float layer, vec3 spill){
       }
     } else if (kind < 2.5) {                            // POCKET: machined recess
       if (d < 0.0) {
-        vec3 fl = vec3(0.07, 0.074, 0.082) + (h21(floor(p * 0.75)) - 0.5) * 0.008;
+        vec3 fl = uPocket + (h21(floor(p * 0.75)) - 0.5) * 0.008;
         float ish = 1.0 - smoothstep(0.0, 12.0, lp.y + hb.y);       // shadow cast by the top wall
         fl *= 1.0 - 0.65 * ish;
         float wall = smoothstep(-3.5, 0.0, d);
@@ -108,7 +110,7 @@ vec3 plates(vec3 col, vec2 p, float layer, vec3 spill){
       float sh = 1.0 - smoothstep(-6.0, 26.0, sdBox(lp - vec2(0.0, 8.0), hb, rad));
       if (d > 0.0) col *= 1.0 - 0.7 * sh;
       if (d < 0.0) {
-        vec3 base = vec3(0.13, 0.137, 0.15);
+        vec3 base = uPanel;
         base += (n11(p.y * 1.9 + 41.0) * 0.6 + n11(p.y * 7.3) * 0.4 - 0.5) * 0.014;
         float t = clamp((lp.y + hb.y) / (2.0 * hb.y), 0.0, 1.0);
         base *= 1.08 - 0.16 * t;
@@ -182,12 +184,12 @@ void main(){
   bool inBoard = uShowBoard > 0.5 && inStage && w.x >= 0.0 && w.y >= 0.0 && w.x <= uWH.x && w.y <= uWH.y;
 
   // the bench top around the breadboard: matte, faintly mottled
-  vec3 col = vec3(0.095, 0.1, 0.11) + (h21(floor(p * 0.5)) - 0.5) * 0.01 + (n11(p.x * 0.013 + p.y * 0.007) - 0.5) * 0.012;
+  vec3 col = uBg + (h21(floor(p * 0.5)) - 0.5) * 0.01 + (n11(p.x * 0.013 + p.y * 0.007) - 0.5) * 0.012;
   if (inBoard) {
     // black anodized aluminium, brushed along the board's long axis
     vec2 bw = uBoard.w > 0.5 ? vec2(q.y, q.x) : q;
     float streak = n11(bw.y * 0.9 + 13.0) * 0.55 + n11(bw.y * 3.3) * 0.3 + h21(vec2(floor(bw.y * 2.0), 1.0)) * 0.15;
-    vec3 base = vec3(0.15, 0.158, 0.172) + (streak - 0.5) * 0.022;
+    vec3 base = uMetal + (streak - 0.5) * 0.022;
     // M6 tapped hole at every cell centre
     vec2 f = (fract(w) - 0.5) * cell;
     float dh = length(f), hr = max(2.6, 0.075 * cell);
@@ -204,10 +206,10 @@ void main(){
     base *= 1.0 - (1.0 - smoothstep(2.6, 9.0, e)) * 0.25;
     vec2 gl2 = abs(fract(w + 0.5) - 0.5) * cell;
     float cross = (1.0 - smoothstep(0.3, 0.9, min(gl2.x, gl2.y))) * (1.0 - smoothstep(3.0, 5.0, max(gl2.x, gl2.y)));
-    base += cross * 0.03;
+    base += cross * 0.075;
     // light landing on the metal, with a sheen along the brushing
-    base += spillB * (0.5 + 0.7 * streak) * vec3(1.0, 0.9, 0.78);
-    base += spillA * 0.2;
+    base += spillB * uGlow * (0.5 + 0.7 * streak) * vec3(1.0, 0.9, 0.78);
+    base += spillA * 0.2 * uGlow;
     col = base;
   } else {
     col += spillB * 0.18;
@@ -216,12 +218,12 @@ void main(){
   // objects (premultiplied) then additive beams with a touch of chromatic fringing
   if (inStage) {
     vec4 ob = stageTex(tObj, su);
-    col = col * (1.0 - ob.a) + ob.rgb;
+    col = col * (1.0 - ob.a) + ob.rgb + ob.a * uLift;
     vec2 ca = (su - 0.5) * 0.004 * uMotion;
     vec3 bm = vec3(stageTex(tBeam, su + ca).r, stageTex(tBeam, su).g, stageTex(tBeam, su - ca).b);
     col += bm;
   }
-  col += spillA * 0.85 + spillB * 0.55;          // bloom
+  col += (spillA * 0.85 + spillB * 0.55) * uGlow;          // bloom
 
   col = plates(col, p, 0.0, spillB);
   col *= 1.0 - 0.6 * uDim;
@@ -230,9 +232,9 @@ void main(){
   // highlight roll-off, vignette, grain
   vec3 hi = max(col - 0.8, 0.0); col = min(col, 0.8) + hi / (1.0 + hi * 1.4);
   vec2 sv = p / res - 0.5;
-  col *= 1.0 - 0.24 * pow(length(sv * vec2(1.0, 0.9)) * 1.25, 2.6);
+  col *= 1.0 - 0.08 * pow(length(sv * vec2(1.0, 0.9)) * 1.25, 2.6);
   float gr = h21(p + fract(uTime * 0.37) * 173.0 * uMotion) - 0.5;
-  col += gr * 0.022;
+  col += gr * uGrain;
   o = vec4(col, 1.0);
 }`;
 
@@ -343,6 +345,9 @@ void main(){
       const m = progs.main, u = m.u;
       gl.useProgram(m.p); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
       [tObj, tBeam, fA0.t, fB0.t].forEach((t, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t); });
+      const palette = SKIN.palette;
+      for (const [uniform, value] of Object.entries({ uBg: palette.bg, uMetal: palette.board, uKey: palette.key, uPanel: palette.panel, uPocket: palette.pocket, uAccent: palette.accent })) gl.uniform3fv(u[uniform], value);
+      gl.uniform1f(u.uGlow, SKIN.glow); gl.uniform1f(u.uLift, palette.lift); gl.uniform1f(u.uGrain, palette.grain);
       gl.uniform1i(u.tObj, 0); gl.uniform1i(u.tBeam, 1); gl.uniform1i(u.tA, 2); gl.uniform1i(u.tB, 3);
       gl.uniform2f(u.uRes, W, H); gl.uniform1f(u.uDpr, dpr); gl.uniform1f(u.uTime, f.time); gl.uniform1f(u.uDim, f.dim); gl.uniform1f(u.uMotion, f.motion);
       const s = f.stage; gl.uniform4f(u.uStage, s.left, s.top, Math.max(1, s.width), Math.max(1, s.height));

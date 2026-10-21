@@ -166,3 +166,8 @@ The repository is expected at `jalapenoseed/beamwright`. If you use another name
 Made by **Jalapeño Seed Productions**. Inspired by a YouTube Shorts video that sent light through a parade of optical elements.
 Typefaces: B612 and B612 Mono (SIL Open Font License), loaded from Google Fonts.
 Code is released under the MIT License (see `LICENSE`).
+
+
+## Skins and readability (v1.1)
+
+Choose **skins & readability** on the title screen or in the pause menu. Brushed Steel is the brighter default; Amber Lab, Ocean and High Contrast are also available. The beam-glow slider reduces bloom without changing optical beam colours. Preferences save on the current device when storage is available. Phone controls have larger targets and a separate row for the full bench name.

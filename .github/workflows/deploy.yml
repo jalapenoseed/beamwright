@@ -27,6 +27,16 @@ jobs:
         run: npm run verify
       - name: Build the game and the itch.io package
         run: npm run itch
+      - name: Check skins and phone layout in Chromium
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+          node tools/check-appearance.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: appearance-checks
+          path: appearance-checks
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
