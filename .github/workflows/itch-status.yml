@@ -1,0 +1,35 @@
+name: Check itch publishing status
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/itch-status.yml]
+permissions:
+  contents: read
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Beamwright visibility
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          node <<'NODE'
+          (async () => {
+            if (!process.env.BUTLER_API_KEY) throw new Error("BUTLER_API_KEY is missing");
+            const response = await fetch("https://api.itch.io/profile/games", {
+              headers: { Authorization: "Bearer " + process.env.BUTLER_API_KEY }
+            });
+            if (!response.ok) throw new Error("itch status request returned HTTP " + response.status);
+            const data = await response.json();
+            const game = (data.games || []).find(g => /\/beamwright\/?$/.test(g.url || ""));
+            if (!game) throw new Error("Beamwright was not returned by the game-list endpoint");
+            console.log(JSON.stringify({
+              id: game.id, title: game.title, url: game.url,
+              published: game.published, type: game.type
+            }));
+          })().catch(() => { console.error("Unable to query Beamwright status safely."); process.exitCode = 1; });
+          NODE
