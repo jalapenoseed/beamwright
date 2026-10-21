@@ -1,3 +1,4 @@
+setTimeout(() => { console.error('Appearance check timed out'); process.exit(1); }, 120000).unref();
 const { chromium } = require('playwright');
 const fs = require('fs');
 (async()=>{
@@ -13,7 +14,9 @@ const fs = require('fs');
    if(await page.locator('html').getAttribute('data-skin')!==id) throw Error('skin switch');
    if(await page.locator('[data-skin-choice="'+id+'"]').getAttribute('aria-pressed')!=='true') throw Error('selection');
  }
- await page.locator('#glowRange').fill('10');
+ await page.locator('#glowRange').focus();
+ await page.keyboard.press('Home');
+ for(let k=0;k<10;k++) await page.keyboard.press('ArrowRight');
  await page.locator('#skinClose').click();
  await page.evaluate(()=>__bw.startPlay(0));
  await page.waitForTimeout(600);
@@ -38,4 +41,4 @@ const fs = require('fs');
  console.log('fallback '+await fallback.locator('html').getAttribute('class'));
  await fallback.screenshot({path:'appearance-checks/beamwright-fallback-phone.png'});
  await browser.close();if(errors.length)process.exitCode=1;
-})().catch(e=>{console.error(e);process.exitCode=1});
+})().catch(e=>{console.error(e);process.exit(1)});
