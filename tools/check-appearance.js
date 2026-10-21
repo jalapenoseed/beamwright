@@ -28,9 +28,7 @@ const fs = require('fs');
  if(await page.locator('#skinov').isVisible())throw Error('Escape does not close');
  await page.reload();
  if(await page.locator('html').getAttribute('data-skin')!=='steel')throw Error('persistence');
- await page.setViewportSize({width:1280,height:720});
- await page.evaluate(()=>__bw.startPlay(13));
- await page.waitForTimeout(600);await page.screenshot({path:'appearance-checks/beamwright-steel-desktop.png'});
+ await page.close();
  if (!result.gl || result.overflow || result.glow !== 0.1 || result.skinSaved.glow !== 0.1) throw Error('Appearance or phone layout check failed: '+JSON.stringify(result));
  console.log(JSON.stringify({result,errors}));
  // Force the 2D fallback and verify the same selector remains usable.
@@ -40,5 +38,7 @@ const fs = require('fs');
  await fallback.locator('#titleSkins').click();await fallback.locator('[data-skin-choice="contrast"]').click();await fallback.locator('#skinClose').click();await fallback.evaluate(()=>__bw.startPlay(0));
  console.log('fallback '+await fallback.locator('html').getAttribute('class'));
  await fallback.screenshot({path:'appearance-checks/beamwright-fallback-phone.png'});
+ await fallback.setViewportSize({width:1280,height:720});await fallback.evaluate(()=>__bw.startPlay(13));
+ await fallback.screenshot({path:'appearance-checks/beamwright-steel-desktop.png'});
  await browser.close();if(errors.length)process.exitCode=1;
 })().catch(e=>{console.error(e);process.exit(1)});
