@@ -2,7 +2,7 @@
 // Build your own bench: light sources, photocells, walls and fixed parts on a board you size yourself,
 // plus the parts the player gets. Test-play it, let the solver check it (in a worker), keep it under
 // "My benches", and share it as a code.
-const MK = { level: null, idx: null, tool: 'wall', sel: null, paint: null, lastCell: '', checking: null, delArmed: false };
+const MK = { level: null, idx: null, tool: 'wall', sel: null, paint: null, pointerId: null, lastCell: '', checking: null, delArmed: false };
 const SRC_COLORS = BENCH.SRC_COLORS, CELL_COLORS = BENCH.CELL_COLORS;
 const CELL_SIZES = [[0.3, 'photocell'], [0.1, 'pinhole'], [0.42, 'wide']];
 const TOOL_HELP = {
@@ -110,7 +110,8 @@ function paintAt(x, y) {
   else if (MK.paint === 'remove') { if (hit && hit.kind === 'wall') { removeItem(hit); AU.tick(); } }
 }
 stage.addEventListener('pointerdown', e => {
-  if (S.screen !== 'maker' || modalOpen()) return;
+  if (S.screen !== 'maker' || modalOpen() || !claimBenchPointer(e, stage)) return;
+  MK.pointerId = e.pointerId;
   AU.init(); MK.delArmed = false;
   const [x, y] = cellAtEvent(e), L = MK.level;
   if (!inBench(x, y)) { MK.sel = null; makerStatus(); return; }
@@ -130,8 +131,12 @@ stage.addEventListener('pointerdown', e => {
   else if (PIECES[t]) { L.fixed.push({ type: t, x, y, a: DEFAULT_A[t] }); MK.sel = { kind: 'fixed', i: L.fixed.length - 1 }; }
   changed(); AU.place(880); makerStatus();
 });
-window.addEventListener('pointermove', e => { if (S.screen === 'maker' && MK.paint) paintAt(...cellAtEvent(e)); });
-window.addEventListener('pointerup', () => { if (MK.paint) { MK.paint = null; makerStatus(); } });
+window.addEventListener('pointermove', e => { if (S.screen === 'maker' && MK.paint && e.pointerId === MK.pointerId) paintAt(...cellAtEvent(e)); });
+function finishMakerPointer(e) { if (e.pointerId !== MK.pointerId) return; MK.pointerId = null; if (MK.paint) { MK.paint = null; makerStatus(); } }
+window.addEventListener('pointerup', finishMakerPointer);
+window.addEventListener('pointercancel', finishMakerPointer);
+stage.addEventListener('lostpointercapture', finishMakerPointer);
+window.addEventListener('blur', () => { MK.pointerId = null; MK.paint = null; });
 window.addEventListener('keydown', e => {
   if (S.screen !== 'maker' || modalOpen() || e.target.closest('input')) return;
   if (e.key === 'Escape') { if (MK.sel) { MK.sel = null; makerStatus(); } else openPause(); }

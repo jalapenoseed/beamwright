@@ -208,18 +208,43 @@ function buildParts() {
 
 // ---------- input ----------
 function localPt(e) { const r = stage.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+// Capture on the stable stage/rack, never on a pocket that buildParts replaces mid-drag.
+const benchPointer = { id: null, owner: null };
+function claimBenchPointer(e, owner) {
+  if ((e.button != null && e.button !== 0) || (benchPointer.id != null && benchPointer.id !== e.pointerId)) return false;
+  if (e.cancelable) e.preventDefault();
+  benchPointer.id = e.pointerId; benchPointer.owner = owner;
+  try { owner.setPointerCapture(e.pointerId); } catch (_) {}
+  return true;
+}
+function releaseBenchPointer() {
+  const { id, owner } = benchPointer;
+  benchPointer.id = null; benchPointer.owner = null;
+  try { if (owner && owner.hasPointerCapture(id)) owner.releasePointerCapture(id); } catch (_) {}
+}
+// iOS embedded browser sheets can steal a pan unless the touch itself is consumed.
+// Keep modal scrolling, appearance sliders, and horizontal rack scrolling available.
+function preventBenchPan(e) {
+  if (modalOpen() || (S.screen !== 'play' && S.screen !== 'maker')) return;
+  const onStage = e.target.closest && e.target.closest('#stage');
+  const onPart = S.screen === 'play' && e.target.closest && e.target.closest('#parts .pocket');
+  if ((benchPointer.id != null || onStage || onPart) && e.cancelable) e.preventDefault();
+}
+document.addEventListener('touchstart', preventBenchPan, { passive: false, capture: true });
+document.addEventListener('touchmove', preventBenchPan, { passive: false, capture: true });
+
 stage.addEventListener('pointerdown', e => {
-  if (S.screen !== 'play') return;
+  if (S.screen !== 'play' || modalOpen() || !claimBenchPointer(e, stage)) return;
   AU.init();
   const [sx, sy] = localPt(e), [wx, wy] = s2w(sx, sy);
   const sp = selPiece();
   if (sp) {
     const kx = sp.x + 0.5 + Math.cos(sp.a * RAD) * 0.62, ky = sp.y + 0.5 + Math.sin(sp.a * RAD) * 0.62;
-    if (Math.hypot(wx - kx, wy - ky) < 0.2) { S.rot = { uid: sp.uid }; stage.setPointerCapture(e.pointerId); return; }
+    if (Math.hypot(wx - kx, wy - ky) < 0.2) { S.rot = { uid: sp.uid }; return; }
   }
   const cx = Math.floor(wx), cy = Math.floor(wy);
   const p = S.placed.find(q => q.x === cx && q.y === cy);
-  if (p) { S.press = { uid: p.uid, sx: e.clientX, sy: e.clientY }; stage.setPointerCapture(e.pointerId); return; }
+  if (p) { S.press = { uid: p.uid, sx: e.clientX, sy: e.clientY }; return; }
   if (S.armed && !occupiedBy(cx, cy)) {
     const t = S.armed; if (S.inv[t] !== Infinity) S.inv[t]--;
     placePiece(t, cx, cy, DEFAULT_A[t]); if (!S.inv[t]) S.armed = null; buildParts(); updateStatus(); return;
@@ -227,12 +252,15 @@ stage.addEventListener('pointerdown', e => {
   S.sel = null; S.armed = null; buildParts(); updateStatus();
 });
 $('#parts').addEventListener('pointerdown', e => {
+  if (S.screen !== 'play' || modalOpen()) return;
   const b = e.target.closest('.pocket'); if (!b) return;
+  const t = b.dataset.type; if (!S.inv[t] || !claimBenchPointer(e, e.currentTarget)) return;
   AU.init();
-  const t = b.dataset.type; if (!S.inv[t]) return;
   S.press = { tray: t, sx: e.clientX, sy: e.clientY };
 });
 window.addEventListener('pointermove', e => {
+  if (benchPointer.id != null && e.pointerId !== benchPointer.id) return;
+  if (benchPointer.id != null && e.cancelable) e.preventDefault();
   S.pointer = localPt(e);
   if (S.press && Math.hypot(e.clientX - S.press.sx, e.clientY - S.press.sy) > 7) {
     if (S.press.tray) {
@@ -262,9 +290,13 @@ function updateDragCell() {
   S.drag.cell = inside && !occupiedBy(cx, cy) ? [cx, cy] : null;
 }
 function endPointer(e, cancel) {
+  if (benchPointer.id == null || e.pointerId !== benchPointer.id) return;
+  if (e.cancelable) e.preventDefault();
+  if (S.drag && !cancel) { S.pointer = localPt(e); updateDragCell(); }
   if (S.drag) {
     const d = S.drag; S.drag = null;
-    if (d.cell && !cancel) placePiece(d.type, d.cell[0], d.cell[1], d.a, d.uid);
+    if (cancel && d.from === 'board') placePiece(d.type, d.ox, d.oy, d.a, d.uid);
+    else if (d.cell && !cancel) placePiece(d.type, d.cell[0], d.cell[1], d.a, d.uid);
     else { if (S.inv[d.type] !== Infinity) S.inv[d.type]++; AU.stow((e.clientX / innerWidth) * 1.6 - 0.8); buildParts(); updateHeader(); }
     S.dirty = true;
   } else if (S.press && !cancel) {
@@ -272,7 +304,10 @@ function endPointer(e, cancel) {
     else { const p = S.placed.find(q => q.uid === S.press.uid); if (p) { if (S.sel === p.uid) rotatePiece(p, 15); else { S.sel = p.uid; AU.select(); updateStatus(); } } }
   }
   S.press = null; S.rot = null;
+  releaseBenchPointer();
 }
+for (const owner of [stage, $('#parts')]) owner.addEventListener('lostpointercapture', e => endPointer(e, true));
+window.addEventListener('blur', () => { if (benchPointer.id != null) endPointer({ pointerId: benchPointer.id, clientX: innerWidth / 2, clientY: innerHeight / 2 }, true); });
 window.addEventListener('pointerup', e => endPointer(e, false));
 window.addEventListener('pointercancel', e => endPointer(e, true));
 stage.addEventListener('wheel', e => { const p = selPiece(); if (!p || S.screen !== 'play') return; e.preventDefault(); rotatePiece(p, e.deltaY > 0 ? 15 : -15); }, { passive: false });

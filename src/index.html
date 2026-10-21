@@ -18,7 +18,10 @@
   color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; width: 100%; overflow: hidden; overscroll-behavior: none; }
+body { position: fixed; inset: 0; }
+#stage, .pocket { -webkit-touch-callout: none; }
+#parts { overscroll-behavior-x: contain; }
 body {
   background: var(--void); color: var(--ink); font-family: var(--f-sans);
   overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
