@@ -10,7 +10,7 @@
     "build": "node tools/build.js",
     "verify": "node tools/verify.js && node tools/community.js verify",
     "solve": "node tools/solve.js",
-    "test": "npm run verify && node tools/build.js",
+    "test": "npm run verify && node --test tools/ && node tools/build.js",
     "itch": "node tools/build.js && node tools/itch.js",
     "community:check": "node tools/community.js check",
     "community:add": "node tools/community.js add",
