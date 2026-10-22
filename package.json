@@ -2,7 +2,8 @@
   "name": "beamwright",
   "version": "1.1.0",
   "description": "An optics bench puzzle game. Bounce, bend, split and focus light into every photocell.",
-  "private": true,
+  "private": false,
+  "homepage": "https://jalapenoseed.github.io/beamwright",
   "license": "MIT",
   "author": "Jalapeño Seed Productions",
   "scripts": {

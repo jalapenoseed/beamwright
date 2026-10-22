@@ -10,7 +10,7 @@ Mount mirrors, lenses, prisms, fibers and stranger glass on an optical breadboar
 ## Play
 
 Open `dist/index.html` in any modern browser. It is one self-contained file with no install and no server.
-Once GitHub Pages is switched on for this repo (see below), it is also playable at `https://<user>.github.io/beamwright/`.
+It is also playable at `https://jalapenoseed.github.io/beamwright/`.
 
 - **Drag** a part from the rack onto any free hole on the bench, or tap a part and then tap a hole.
 - **Tap** a mounted part to select it, and tap again to turn it 15°. You can also drag the knob on its degree ring, use the mouse wheel, or press `Q` / `E`.
@@ -125,6 +125,7 @@ src/
   boot.js      start-up once fonts are ready
   gl.js        WebGL 2 compositor and the shader that draws the table and UI plates
   audio.js     synthesized sound
+  skins.js     readable skins (Brushed Steel, Amber Lab, Ocean, High Contrast) + beam-glow setting
 data/
   solutions.json   par and hint solution per level (generated)
 tools/
@@ -138,7 +139,7 @@ tools/
 community/benches/ accepted community benches, one JSON file each
 itch/              cover, screenshots and page text for itch.io
 .github/           deploy workflow (Pages + itch), bench submission workflow, issue form
-dist/index.html    the built game
+dist/index.html    the built game (committed on purpose so it can be opened directly, no server needed)
 ```
 
 ## Develop
