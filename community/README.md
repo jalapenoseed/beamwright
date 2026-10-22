@@ -20,3 +20,10 @@ No GitHub account? Copy the share code from bench settings and post it in the co
 Each file holds the bench (size, sources, cells, walls, fixed parts, inventory), its author, the date it was added, par, and a solution the hint key can show. Codes are validated field by field when they're read, so a code can only ever describe a legal bench.
 
 Set up once: create the labels `bench submission` and `accepted` (Issues → Labels), and in Settings → Actions → General, allow workflows **Read and write permissions**.
+
+## Maintainer notes
+
+- **Review queue:** accepting a bench is a manual step (play it, add the `accepted` label). Try to review submissions within a week so contributors don't go quiet — even a short "not quite, here's why" keeps the queue healthy.
+- **If the bot doesn't reply:** check that the issue has the `bench submission` label and that Actions has read/write permission (see setup above). Re-run the `bench-submission` workflow from the Actions tab.
+- **If the accept workflow fails:** it re-checks the bench with the solver before committing. A bench that passed `check` in the maker but fails here usually means the code was edited by hand — ask the author to re-export it.
+- **Naming:** files are `NNNN-name.json` (next number, slug of the bench name). Keep the author's credit exactly as they wrote it.
