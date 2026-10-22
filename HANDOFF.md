@@ -8,7 +8,7 @@ Hand this file and the repo zip (`beamwright.zip`) to the next assistant. It cov
 
 - It's plain HTML, CSS and JavaScript with no framework and no runtime dependencies. Node 18+ is only needed for the tools.
 - `npm run build` bundles `src/` into one self-contained file, `dist/index.html`.
-- It's headed for **itch.io** (HTML5 upload) and **GitHub Pages**. The repo is expected at `jalapenoseed/beamwright`, which hasn't been created or pushed yet.
+- It's headed for **itch.io** (HTML5 upload) and **GitHub Pages**. The repo lives at `jalapenoseed/beamwright`.
 
 ## What's in the game
 
@@ -37,6 +37,7 @@ src/
   solver.js     SOLVER.solveID(level, maxDepth, maxSol, budgetMs): iterative deepening (browser + Node)
   codes.js      BENCH.encode/decode/problems: BW1 share codes, strictly validated (browser + Node)
   audio.js      Web Audio synth: bells, beam "drum machine" hits, cell tones, music, win phrase, offline render
+  skins.js      readable skins + beam-glow setting (Brushed Steel default, Amber Lab, Ocean, High Contrast)
   gl.js         WebGL2 compositor: breadboard shader, bloom, fringe, grain, and every UI plate
   game.js       state, input, sequencer, drawing (parts, emitters, photocells), menus, level flow
   maker.js      bench maker
@@ -49,7 +50,7 @@ itch/   cover.png, 5 screenshots, page.md (itch description + every setting)
 .github/ deploy.yml (verify, build, Pages, itch via butler), bench-submission.yml, issue form
 ```
 
-The build order matters. These load as globals: engine, levels, SOLS, solver, codes, COMMUNITY, REPO, WORKER_SRC, audio, gl. After them, `game.js + maker.js + community.js + boot.js` share one IIFE scope. `window.__bw` exposes hooks for tests and the trailer.
+The build order matters. These load as globals, in this order: engine, levels, SOLS, solver, codes, COMMUNITY, REPO, WORKER_SRC, audio, skins, gl. After them, `game.js + maker.js + community.js + boot.js` share one IIFE scope. `window.__bw` exposes hooks for tests and the trailer.
 
 ### How things work
 
@@ -89,7 +90,7 @@ npm run trailer   # needs Playwright + ffmpeg
 Done and committed (latest commit: itch packaging, community benches, new emitters and photocells). Every test passes. The game is published as a claude.ai artifact for previewing.
 
 To do:
-1. **Create and push `jalapenoseed/beamwright`** on GitHub.
+1. **Finish the GitHub setup** (repo already exists at `jalapenoseed/beamwright`).
    - Turn on Pages: Settings → Pages → Source: GitHub Actions.
    - Create the labels `bench submission` and `accepted`.
    - Give workflows read and write permission: Settings → Actions → General.
