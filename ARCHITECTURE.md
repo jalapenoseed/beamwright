@@ -30,12 +30,15 @@ Order matters — everything loads as globals. From `tools/build.js`:
 
 Then one IIFE wraps, in order:
 
-12. `src/game.js` — state, input, sequencer, 2D layers, menus, level flow
-13. `src/maker.js` — bench maker (tools, inspector, settings, check, submit)
-14. `src/community.js` — community benches in the picker, play, remix
-15. `src/boot.js` — start-up once fonts are ready
+12. `src/game.js` — core: DOM refs, constants, sequencer, state (`S`, `V`), layout, `loadLevel`
+13. `src/game-input.js` — selection, pointer/drag, place/rotate/return, `retrace`, win flow
+14. `src/game-draw.js` — all canvas drawing: bench, beams, pieces, sources, cells, labels
+15. `src/game-ui.js` — frame loop, modals, pause menu, level picker, title/ident, `start`
+16. `src/maker.js` — bench maker (tools, inspector, settings, check, submit)
+17. `src/community.js` — community benches in the picker, play, remix
+18. `src/boot.js` — start-up once fonts are ready
 
-`window.__bw` exposes hooks for tests and the trailer. `game.js`, `maker.js`, `community.js` and `boot.js` share one IIFE scope — do not reorder them without checking cross-references.
+`window.__bw` exposes hooks for tests and the trailer. All of the above share one IIFE scope — do not reorder them without checking cross-references. The `game-*.js` split is purely organizational: the concatenated bundle is token-identical to the old single `game.js` (verified by build diff).
 
 ## Key modules
 
@@ -46,7 +49,7 @@ Then one IIFE wraps, in order:
 | `codes.js` | Share-code encode/decode with field-by-field validation. Treat codes as untrusted input. |
 | `audio.js` | Synthesized sound: the light path *is* the drum machine (see README). |
 | `gl.js` | WebGL2 compositor; draws breadboard, bloom, and all `data-plate` UI. `.no-gl` 2D fallback. |
-| `game.js` | The bulk of the app: state machine, input, rendering layers, menus. |
+| `game.js` + `game-input.js` + `game-draw.js` + `game-ui.js` | The app, split by concern (was one 71 KB file): state machine, input, rendering layers, menus. |
 | `maker.js` | Level editor, including the solver-backed **check** step. |
 
 ## Data flow
