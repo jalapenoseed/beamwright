@@ -90,7 +90,18 @@ function buildScene(level, placed) {
   // fiber ends that touch another fiber end are joined: light passes straight across
   for (const e of ports) e.joined = ports.some(f => f !== e && Math.hypot(f.mx - e.mx, f.my - e.my) < 0.03);
   level.sources.forEach((s, i) => objs.push({ kind: 'circ', id: 's' + i, cx: s.x + 0.5, cy: s.y + 0.5, r: 0.3, absorb: true }));
-  level.targets.forEach((t, i) => objs.push({ kind: 'circ', id: 't' + i, ti: i, cx: t.x + 0.5 + (t.ox || 0), cy: t.y + 0.5 + (t.oy || 0), r: t.r || 0.3, color: t.color || 'any' }));
+  level.targets.forEach((t, i) => {
+    const base = { id: 't' + i, ti: i, cx: t.x + 0.5 + (t.ox || 0), cy: t.y + 0.5 + (t.oy || 0), color: t.color || 'any' };
+    if (t.profile) {
+      const a = (t.a || 0) * Math.PI / 180;
+      objs.push({ ...base, kind: 'seg', act: 'sensor', tx: -Math.sin(a), ty: Math.cos(a), nx: Math.cos(a), ny: Math.sin(a), half: t.half || 0.4 });
+    } else objs.push({ ...base, kind: 'circ', r: t.r || 0.3 });
+  });
+  // An aperture is physical absorbing steel, with an open slit through its centre.
+  for (const g of level.gates || []) {
+    objs.push({kind:'box', id:'w', x0:g.x+0.46, x1:g.x+0.54, y0:0, y1:g.y+0.5-g.gap});
+    objs.push({kind:'box', id:'w', x0:g.x+0.46, x1:g.x+0.54, y0:g.y+0.5+g.gap, y1:level.h});
+  }
   for (const [x, y] of level.walls || []) objs.push({ kind: 'box', id: 'w', x0: x, y0: y, x1: x + 1, y1: y + 1 });
   const zones = [];
   for (const m of level.mirage || []) {
@@ -167,14 +178,17 @@ function trace(level, placed, opts = {}) {
   const { objs, all, zones } = buildScene(level, placed);
   const segs = [];
   const tgt = level.targets.map(() => 0);
+  const profiles = level.targets.map(t => t.profile ? { bins: Array(t.bins || 5).fill(0), accepted: 0, anglePower: 0 } : null);
   const hits = {};
   const stack = [];
   level.sources.forEach(s => {
     const a = s.a * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);
     const px = -dy, py = dx;
-    for (let k = 0; k < RAYS_PER_BEAM; k++) {
-      const off = (k - (RAYS_PER_BEAM - 1) / 2) * RAY_SPACING;
-      stack.push({ x: s.x + 0.5 + dx * 0.32 + px * off, y: s.y + 0.5 + dy * 0.32 + py * off, dx, dy, I: 1 / RAYS_PER_BEAM, c: s.color || 'W', d: 0, k, st: 0, L: 0 });
+    const count = s.rays || RAYS_PER_BEAM;
+    const spacing = s.width == null ? RAY_SPACING : s.width / Math.max(1, count - 1);
+    for (let k = 0; k < count; k++) {
+      const off = (k - (count - 1) / 2) * spacing;
+      stack.push({ x: s.x + 0.5 + dx * 0.32 + px * off, y: s.y + 0.5 + dy * 0.32 + py * off, dx, dy, I: 1 / count, c: s.color || 'W', d: 0, k, st: 0, L: 0 });
     }
   });
   let guard = 0;
@@ -200,6 +214,20 @@ function trace(level, placed, opts = {}) {
     if (r.d > 80 || r.I < 0.004) { seg.ev = 'fade'; continue; }
     if (o.id && o.id !== 'w' && o.id !== 'z') hits[o.id] = (hits[o.id] || 0) + r.I;
     const next = (ndx, ndy, I, c) => stack.push({ x: hx + ndx * 1e-5, y: hy + ndy * 1e-5, dx: ndx, dy: ndy, I, c: c || r.c, d: r.d + 1, k: r.k, st: r.st, L: r.L + h.s });
+    if (o.act === 'sensor') {
+      const tg = level.targets[o.ti], p = profiles[o.ti];
+      const forward = r.dx * o.nx + r.dy * o.ny;
+      const angle = Math.acos(Math.max(-1, Math.min(1, forward))) * 180 / Math.PI;
+      if (o.color === 'any' || o.color === r.c) {
+        tgt[o.ti] += r.I; seg.ti = o.ti;
+        if (angle <= (tg.tolerance == null ? 89 : tg.tolerance)) {
+          const bin = Math.max(0, Math.min(p.bins.length - 1, Math.floor((h.h + o.half) / (2 * o.half) * p.bins.length)));
+          p.bins[bin] += r.I * LM_PER_BEAM; p.accepted += r.I * LM_PER_BEAM;
+        }
+        p.anglePower += angle * r.I * LM_PER_BEAM;
+      }
+      seg.ev = 'target'; continue;
+    }
     if (o.kind === 'circ') {
       const counts = o.ti !== undefined && (o.color === 'any' || o.color === r.c);
       if (counts) { tgt[o.ti] += r.I; seg.ti = o.ti; }
@@ -258,8 +286,15 @@ function trace(level, placed, opts = {}) {
     else emit(r.c, r.I);
   }
   const lm = tgt.map(v => v * LM_PER_BEAM);
-  const lit = level.targets.map((t, i) => lm[i] >= t.need - 1e-6);
-  return { segs, lm, lit, hits, win: lit.every(Boolean) && lit.length > 0, all };
+  const quality = level.targets.map((t, i) => {
+    const p = profiles[i];
+    if (!p) return Math.min(1, lm[i] / t.need);
+    p.covered = p.bins.filter(v => v >= (t.binNeed || 5) - 1e-6).length;
+    p.meanAngle = lm[i] ? p.anglePower / lm[i] : 0;
+    return Math.min(1, p.accepted / t.need, ...p.bins.map(v => v / (t.binNeed || 5)));
+  });
+  const lit = quality.map(q => q >= 1 - 1e-6);
+  return { segs, lm, lit, profiles, quality, hits, win: lit.every(Boolean) && lit.length > 0, all };
 }
 
 if (typeof module !== 'undefined') module.exports = { trace, PIECES, PIECE_ORDER, SPEC, BANDS, buildScene, BEND_R1, BEND_R2 };

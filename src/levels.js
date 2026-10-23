@@ -187,10 +187,40 @@ const LEVELS = [
     fixed: [{ type: 'fiber', x: 3, y: 3, a: 0 }, { type: 'fiber', x: 4, y: 3, a: 0 }, { type: 'bend', x: 5, y: 3, a: 0 }, { type: 'fiber', x: 5, y: 4, a: 90 }, { type: 'fiber', x: 5, y: 5, a: 90 }],
     inv: { splitter: 1, mirror: 1, cateye: 1 },
   },
-  // ---------------- Chapter III: Masterworks ----------------
+  // ---------------- Chapter III: shape the light ----------------
+  {
+    name: 'Needle of Light', w: 9, h: 7, chapter: 3, shaping: true,
+    tip: 'Gather all nine rays into the tiny iris. Slide the convex lens until the bright focus sits inside it. Tap a part, then tap a hole to place it.',
+    sources: [{x:0,y:3,a:0,rays:9,width:0.64}],
+    targets: [{x:6,y:3,r:0.045,need:95}], walls: [], inv: {convex:1},
+    handSol: [{type:'convex',x:4,y:3,a:90}],
+  },
+  {
+    name: 'Paint with Light', w: 9, h: 7, shaping: true,
+    tip: 'Light all five strips of the receiver. A narrow bright spot does not count: spread the beam with the concave lens. Each strip needs 10 lm.',
+    sources: [{x:0,y:3,a:0,rays:9,width:0.32}],
+    targets: [{x:6,y:3,profile:true,half:0.55,bins:5,binNeed:10,need:95}], walls: [], inv: {concave:1},
+    handSol: [{type:'concave',x:4,y:3,a:90}],
+  },
+  {
+    name: 'Twin Focus', w: 9, h: 8, shaping: true,
+    tip: 'Split the light, then focus both branches into their tiny irises. Each needs 45 lm at the same time. A splitter shares energy; it does not create more.',
+    sources: [{x:0,y:2,a:0,rays:9,width:0.48}],
+    targets: [{x:8,y:2,r:0.045,need:45},{x:3,y:7,r:0.045,need:45}], walls: [], inv: {splitter:1,convex:2},
+    handSol: [{type:'splitter',x:3,y:2,a:45},{type:'convex',x:6,y:2,a:90},{type:'convex',x:3,y:5,a:0}],
+  },
+  {
+    name: 'Through the Needle', w: 11, h: 7, shaping: true,
+    tip: 'Focus through the slit, then use a second convex lens to make a wide parallel beam again. Fill all five strips with rays arriving within 2 degrees of straight.',
+    sources: [{x:0,y:3,a:0,rays:9,width:0.64}],
+    targets: [{x:10,y:3,profile:true,half:0.4,bins:5,binNeed:10,need:95,tolerance:2}],
+    gates: [{x:5,y:3,gap:0.055}], walls: [], inv: {convex:2},
+    handSol: [{type:'convex',x:3,y:3,a:90},{type:'convex',x:7,y:3,a:90}],
+  },
+  // ---------------- Chapter IV: Masterworks ----------------
   // Explicit solutions keep these deeper puzzles verifiable without an exponential solver search.
   {
-    name: 'Switchback', w: 11, h: 8, chapter: 3,
+    name: 'Switchback', w: 11, h: 8, chapter: 4,
     tip: 'Two barriers, opposite openings. Plan the entire route before spending your six mirrors.',
     sources: [{ x: 0, y: 1, a: 0 }],
     targets: [{ x: 10, y: 6, need: 90 }],
@@ -283,4 +313,3 @@ const LEVELS = [
 ];
 
 if (typeof module !== 'undefined') module.exports = { LEVELS };
-

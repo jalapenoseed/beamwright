@@ -66,7 +66,7 @@ jobs:
 
   itch:
     # needs the BUTLER_API_KEY secret and the ITCH_GAME variable (for example jalapenoseed/beamwright)
-    if: false # Hold publishing until the newer itch-only chapter is reconciled.
+    if: github.event_name != 'pull_request' && vars.ITCH_GAME != ''
     needs: build
     runs-on: ubuntu-latest
     steps:

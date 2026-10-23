@@ -17,7 +17,7 @@ Beamwright is plain HTML, CSS and JavaScript with no framework and no runtime de
 Order matters — everything loads as globals. From `tools/build.js`:
 
 1. `src/engine.js` — optics: `PIECES`, `buildScene`, `trace(level, placed)`
-2. `src/levels.js` — the 32 campaign benches
+2. `src/levels.js` — the 36 campaign benches
 3. `SOLS` — par + hint solutions (generated, `data/solutions.json`)
 4. `src/solver.js` — `SOLVER.solveID`, iterative deepening (browser + Node)
 5. `src/codes.js` — `BENCH.encode/decode`, `BW1-…` share codes, strictly validated

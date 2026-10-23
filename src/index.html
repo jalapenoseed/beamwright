@@ -102,6 +102,9 @@ body.has-ov #app, body.has-ov #title { visibility: hidden; }
 .leds { display: flex; gap: 12px; align-items: center; }
 .leds i { width: 14px; height: 14px; display: block; }
 
+#objective { position:absolute; top:8px; left:50%; transform:translateX(-50%); max-width:calc(100% - 12px); width:max-content; padding:8px 12px; border:1px solid #56616c; border-radius:5px; background:rgba(16,21,27,.94); color:#e0e7ed; font:12px/1.4 var(--f-mono); text-align:center; pointer-events:none; }
+#objective.complete { border-color:#e8bc72; color:#ffdc95; }
+body.on-title #objective, body.in-maker #objective { display:none; }
 /* title */
 #title { place-items: end center; padding-bottom: max(9vh, env(safe-area-inset-bottom, 0px)); }
 .title-wrap { display: grid; gap: 16px; justify-items: center; text-align: center; max-width: 640px; }
@@ -254,6 +257,7 @@ button:focus-visible, .input:focus-visible { outline: 3px solid var(--vfd); outl
   <main id="stage" aria-label="Optics bench">
     <canvas id="cv"></canvas>
     <canvas id="bv"></canvas>
+    <div id="objective" role="status" aria-live="polite" hidden></div>
   </main>
   <footer class="drawer">
     <div class="status" id="status" aria-live="polite"></div>
@@ -277,12 +281,15 @@ button:focus-visible, .input:focus-visible { outline: 3px solid var(--vfd); outl
     <div class="presents etch"><b>Jalapeño Seed Productions</b> presents</div>
     <h1 class="sr">Beamwright</h1>
     <div id="logoSlot" aria-hidden="true"></div>
-    <p class="sub etch">An optics bench puzzle. Bounce, bend, split and focus light until every photocell is lit.</p>
+    <p class="sub etch">Shape the light. Focus it to a needle, spread it across a receiver, and master ten intricate new maps.</p>
     <div class="row">
-      <button class="key big accent" data-plate="accent" id="startBtn">switch on the bench</button>
+      <button class="key big accent" data-plate="accent" id="titleMasterworks">play Masterworks</button>
+      <button class="key big" data-plate="key" id="titleShape">play Shape the Light</button>
+      <button class="key big" data-plate="key" id="startBtn">original campaign</button>
       <button class="key big" data-plate="key" id="titleLevels">choose bench</button>
       <button class="key big" data-plate="key" id="titleFree">free bench</button>
       <button class="key big" data-plate="key" id="titleMaker">bench maker</button>
+      <button class="key big" data-plate="key" id="voiceBtn">sound: glass</button>
       <button class="key big" data-plate="key" id="titleSkins">skins &amp; readability</button>
     </div>
   </div>
@@ -299,7 +306,7 @@ button:focus-visible, .input:focus-visible { outline: 3px solid var(--vfd); outl
 
 <div class="ov modal" id="levels" hidden data-clip>
   <div class="panel wide" data-plate="panel">
-    <div class="head"><div><div class="legend etch" id="levelCount">optics lab · 32 benches</div><h2 class="etch">Choose a bench</h2></div><button class="key" data-plate="key" id="levelsClose">close</button></div>
+    <div class="head"><div><div class="legend etch" id="levelCount">optics lab · 36 benches</div><h2 class="etch">Choose a bench</h2></div><button class="key" data-plate="key" id="levelsClose">close</button></div>
     <div class="picker" id="levelGrid"></div>
   </div>
 </div>

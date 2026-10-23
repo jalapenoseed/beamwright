@@ -15,36 +15,39 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
       page.on('pageerror', e => errors.push(e.message));
       await page.goto(pathToFileURL(path.join(__dirname, '../dist/index.html')).href);
       await page.waitForFunction(() => window.__bw);
+      await page.evaluate(() => __bw.toTitle());
+      await page.locator('#titleShape').click();
+      assert.equal(await page.locator('#lvlName').textContent(), 'Needle of Light');
       await page.evaluate(() => { __bw.toTitle(); __bw.showLevels(); });
-      assert.equal(await page.locator('#levelCount').textContent(), 'optics lab · 32 benches');
+      assert.equal(await page.locator('#levelCount').textContent(), 'optics lab · 36 benches');
       assert.equal(await page.locator('#levelGrid .chap').filter({hasText:'Masterworks'}).count(), 1);
-      const first = page.getByRole('button', {name:'Bench 23, Switchback',exact:true});
-      assert.ok(await first.isEnabled(), 'chapter III must be available with no previous progress');
-      assert.ok(await page.getByRole('button',{name:'Bench 24, The Inner Vault, locked',exact:true}).isDisabled());
+      const first = page.getByRole('button', {name:'Bench 27, Switchback',exact:true});
+      assert.ok(await first.isEnabled(), 'chapter IV must be available with no previous progress');
+      assert.ok(await page.getByRole('button',{name:'Bench 28, The Inner Vault, locked',exact:true}).isDisabled());
       await first.click();
       assert.equal(await page.locator('#lvlName').textContent(), 'Switchback');
       await page.locator('#hintBtn').click();
       assert.ok((await page.locator('#status').textContent()).includes('Hint:'));
-      for (let i = 22; i < 32; i++) {
+      for (let i = 26; i < 36; i++) {
         await page.evaluate(i => __bw.startPlay(i, __bw.LEVELS[i].sol), i);
         await page.waitForFunction(() => __bw.S.res?.win && !document.querySelector('#win').hidden);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-        if (i === 31) {
+        if (i === 35) {
           assert.equal(await page.locator('#winTitle').textContent(), 'Masterworks complete');
           await page.locator('#winStay').click();
           await page.screenshot({path:`appearance-checks/masterworks-${viewport.width}.png`});
         }
       }
-      // Chapter II now continues into III, and the completion unlock survives reload.
-      await page.evaluate(() => __bw.startPlay(21, __bw.LEVELS[21].sol));
+      // Chapter III now continues into IV, and the completion unlock survives reload.
+      await page.evaluate(() => __bw.startPlay(25, __bw.LEVELS[25].sol));
       await page.waitForFunction(() => !document.querySelector('#win').hidden);
-      assert.equal(await page.locator('#winNext').textContent(), 'start chapter III →');
+      assert.equal(await page.locator('#winNext').textContent(), 'start chapter IV →');
       await page.locator('#winNext').click();
       assert.equal(await page.locator('#lvlName').textContent(), 'Switchback');
       await page.reload();
       await page.waitForFunction(() => window.__bw);
       await page.evaluate(() => { __bw.toTitle(); __bw.showLevels(); });
-      assert.ok(await page.getByRole('button',{name:'Bench 32, Grandmaster, 3 of 3',exact:true}).isEnabled());
+      assert.ok(await page.getByRole('button',{name:'Bench 36, Grandmaster, 3 of 3',exact:true}).isEnabled());
       assert.deepEqual(errors, []);
       await page.close();
     }

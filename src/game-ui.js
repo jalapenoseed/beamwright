@@ -57,6 +57,7 @@ function openPause() {
     m.append(key('choose bench', showLevels), key('bench maker', () => openMaker(null)), key('main menu', toTitle));
   }
   m.append(key('skins & readability', () => SKIN.open()));
+  m.append(key('sound: ' + AU.mode + ' · switch', changeVoice));
   closeModals(); $('#pause').hidden = false; focusFirst('#pauseMenu');
 }
 // Esc closes whatever menu is open, innermost first
@@ -84,7 +85,7 @@ $('#levelGrid').addEventListener('keydown', e => {
 
 // ---------- screens ----------
 function firstOpen() { for (let i = 0; i < LEVELS.length; i++) if (!progress[i]) return i; return LEVELS.length - 1; }
-function unlocked(i) { return i === 0 || !!LEVELS[i].chapter || progress[i - 1] || progress[i]; }
+function unlocked(i) { return i === 0 || (!!LEVELS[i].chapter || LEVELS[i].shaping) || progress[i - 1] || progress[i]; }
 function showLevels() {
   const g = $('#levelGrid'); g.innerHTML = '';
   $('#levelCount').textContent = `optics lab · ${LEVELS.length} benches`;
@@ -117,9 +118,14 @@ function startPlay(i, keep, custom) {
   AU.music(null);
   loadLevel(i, keep, custom);
 }
-$('#startBtn').onclick = () => startPlay(store.get('last', null) ?? firstOpen());
+$('#startBtn').onclick = () => { const last = store.get('last', 0); const next = LEVELS.slice(0, CH3).findIndex((_, i) => !progress[i]); startPlay(last >= 0 && last < CH3 ? last : Math.max(0, next)); };
 $('#titleLevels').onclick = () => { AU.init(); showLevels(); };
 $('#titleFree').onclick = () => startPlay(-1);
+$('#titleShape').onclick = () => startPlay(CH3);
+$('#titleMasterworks').onclick = () => startPlay(LEVELS.findIndex(l => l.chapter === 4));
+function changeVoice() { AU.init(); AU.setMode(AU.mode === 'glass' ? 'rhythm' : 'glass'); $('#voiceBtn').textContent = 'sound: ' + AU.mode; AU.preview(); }
+$('#voiceBtn').onclick = changeVoice;
+$('#voiceBtn').textContent = 'sound: ' + AU.mode;
 $('#menuBtn').onclick = () => openPause();
 $('#titleMaker').onclick = () => { AU.init(); openMaker(null); };
 $('#levelsClose').onclick = closeLevels;
@@ -142,7 +148,7 @@ $('#gateBtn').onclick = () => { AU.init(); startIdent(); };
   if (S.screen === 'ident' && performance.now() - S.identT0 > 400) { e.stopPropagation(); toTitle(); }   // skip the ident
 }, true));
 // hooks for tools/trailer.js, which drives the game frame by frame to film the trailer
-window.__bw = { S, LEVELS, SANDBOX, SEQ, startPlay, loadLevel, placePiece, rotatePiece, startIdent, toTitle, showLevels, layout, restartLoop };
+window.__bw = { S, V, AU, trace, w2s, occupiedBy, LEVELS, SANDBOX, SEQ, startPlay, loadLevel, placePiece, rotatePiece, startIdent, toTitle, showLevels, layout, restartLoop };
 function start(data) {
   data = data || window.claude?.hot?.data || {};
   if (!GLR.init($('#gl'))) document.documentElement.classList.add('no-gl');
@@ -153,4 +159,3 @@ function start(data) {
   else if (data.screen === 'title') toTitle();
   requestAnimationFrame(frame);
 }
-

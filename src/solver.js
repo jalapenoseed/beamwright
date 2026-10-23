@@ -10,6 +10,7 @@ const SOLVER = (() => {
     level.sources.forEach(s => add(s.x, s.y));
     level.targets.forEach(t => add(t.x, t.y));
     (level.fixed || []).forEach(p => add(p.x, p.y));
+    (level.gates || []).forEach(g => { for (let y = 0; y < level.h; y++) add(g.x, y); });
     (level.mirage || []).forEach(m => { for (let x = m.x; x < m.x + m.w; x++) for (let y = m.y; y < m.y + m.h; y++) add(x, y); });
     placed.forEach(p => add(p.x, p.y));
     return occ;

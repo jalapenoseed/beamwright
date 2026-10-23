@@ -11,7 +11,8 @@ const AU = (() => {
   };
   let c = null, master, bus, noise, hum, musicBus, offline = false, forced = null;
   const tones = {};
-  const A = { on: store.get('sound', true) };
+  const A = { on: store.get('sound', true), mode: store.get('voice', 'glass') === 'rhythm' ? 'rhythm' : 'glass' };
+  A.setMode = mode => { A.mode = mode === 'rhythm' ? 'rhythm' : 'glass'; store.set('voice', A.mode); };
   const now = () => forced ?? c.currentTime;
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -125,9 +126,41 @@ const AU = (() => {
     edge(t, v, o) { nz(t, 0.3, 'bandpass', 3200, 1.2, 0.045 * v, o, 650); },                                               // leaves the bench and fades
     fade(t, v, o) { nz(t, 0.25, 'bandpass', 2600, 1.2, 0.03 * v, o, 600); },
   };
+  // Thin glass: a quick strike, gently beating fundamental, and independently decaying inharmonic modes.
+  function glassAt(t, f, v, dest, length = 1.15) {
+    [[1,1,1],[1.003,0.19,0.82],[2.71,0.24,0.38],[4.16,0.11,0.22],[6.31,0.045,0.12]].forEach(([ratio,amp,decayTime]) => {
+      if(f*ratio>15000) return;
+      const osc=c.createOscillator(), gain=c.createGain(); osc.type='sine'; osc.frequency.value=f*ratio;
+      gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(v*amp,t+0.0025);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+length*decayTime);
+      osc.connect(gain);gain.connect(dest);osc.start(t);osc.stop(t+length*decayTime+0.02);
+    });
+  }
+  function gleamAt(t, q, dest) {
+    // A small rise of pitched overtones, not a broadband swoosh.
+    [1,1.5,2].forEach((r,i) => {
+      const o=c.createOscillator(), g=c.createGain(), tt=t+i*0.055;
+      o.frequency.setValueAtTime((1100+q*600)*r,tt);o.frequency.exponentialRampToValueAtTime((1300+q*750)*r,tt+0.19);
+      g.gain.setValueAtTime(0,tt);g.gain.linearRampToValueAtTime(0.014/(i+1),tt+0.055);g.gain.exponentialRampToValueAtTime(0.0001,tt+0.55);
+      o.connect(g);g.connect(dest);o.start(tt);o.stop(tt+0.58);
+    });
+  }
+  A.gleam = q => { if(A.ready() && A.mode==='glass') gleamAt(now(),q,bus); };
+  A.preview = () => { if(A.ready()) { A.hit('lens',0.8,0,now()); if(A.mode==='glass') { gleamAt(now()+0.3,0.8,bus);glassAt(now()+0.95,1760,0.09,bus,1.8); } else A.bell(1174.66,0.09,1.5,0.4); } };
+  const GLASS_PITCH = {mirror:2093,split:1568,lens:1318.51,cmirror:1174.66,glassIn:1760,glassOut:2349.32,tir:2637,fiberTir:3136,disperse:1975.53,retro:1479.98};
   A.hit = function (type, vel, pan, t) {
     if (!A.ready() || !HITS[type]) return;
-    HITS[type](Math.max(t, c.currentTime), Math.min(1, vel), voice(pan));
+    t=Math.max(t,c.currentTime);vel=Math.min(1,vel);
+    if(A.mode==='glass' && !GLASS_PITCH[type] && type!=='emit' && type!=='wall') return;
+    const out=voice(pan);
+    if(A.mode==='rhythm') { HITS[type](t,vel,out);return; }
+    if(GLASS_PITCH[type]) {
+      glassAt(t,GLASS_PITCH[type],vel*(type==='fiberTir'?0.008:0.027),out,type==='fiberTir'?0.24:0.75);
+      if(type==='split') glassAt(t+0.045,2349.32,vel*0.014,out,0.65);
+      if(type==='disperse') gleamAt(t,0.65,out);
+    } else if(type==='emit') tone(t,0.1,'sine',220,0.012*vel,out);
+    else if(type==='wall') nz(t,0.04,'lowpass',750,0.7,0.018*vel,out);
+    // Targets ring on a newly completed objective, not on every passing pulse.
   };
 
   // ---------- music ----------
@@ -229,20 +262,21 @@ const AU = (() => {
 
   // the game's events, voiced the original way
   A.ting = (f) => A.bell(f, 0.05, 1.4);
-  A.place = (f) => { A.bell(f * 2, 0.07, 0.5); A.tick(); };
+  A.place = (f) => { if(A.mode==='glass') { if(A.ready()) glassAt(now(),f,0.065,bus,0.9); } else { A.bell(f * 2, 0.07, 0.5); A.tick(); } };
   A.ratchet = () => A.tick();
   A.select = () => A.tick();
   A.key = () => {};
   A.release = () => A.whoosh(true, 0.06);
   A.stow = () => A.whoosh(false, 0.08);
-  A.charge = (id, f) => { A.bell(f, 0.2, 2.6); A.toneOn(id, f / 2); };
+  A.charge = (id, f) => { if(A.mode==='glass') { if(A.ready()) { gleamAt(now(),1,bus);glassAt(now()+0.06,f,0.095,bus,1.9); } } else A.bell(f, 0.2, 2.6); A.toneOn(id, f / 2); };
   A.discharge = (id) => A.toneOff(id);
   A.hint = () => A.bell(1760, 0.06, 1);
   A.nudge = () => A.bell(1760, 0.03, 1);
-  A.setLight = (light, busy, quiet) => A.setHum(quiet ? 0.0 : 0.05 + 0.05 * busy);
+  A.setLight = (light, busy, quiet) => A.setHum(quiet ? 0.0 : A.mode==='glass' ? 0.012 + 0.018 * light : 0.05 + 0.05 * busy);
   // every cell lit: a short phrase in the title theme's own voices, on its 112 BPM grid, kept gentle
   A.win = () => {
     if (!A.ready()) return;
+    if(A.mode==='glass') { glassAt(now()+0.02,1174.66,0.055,bus,1.7);glassAt(now()+0.16,1760,0.045,bus,2.0);return; }
     const t = now() + 0.04, sp = 60 / 112 / 4, out = c.createGain(); out.gain.value = 0.75; out.connect(bus);
     [[0, 74], [2, 78], [4, 81], [6, 86], [10, 85], [12, 81]].forEach(([s, m], i) => pluck(t + s * sp, mtof(m), i === 3 ? 0.05 : 0.04, out, 0.5));
     CH.Dmaj9.forEach(m => padNote(t, mtof(m + 12), sp * 14, 0.012, out));

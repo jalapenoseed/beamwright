@@ -5,7 +5,7 @@ const { LEVELS } = require('../src/levels');
 const E = require('../src/engine');
 const { solveID } = require('../src/solver');
 
-const start = LEVELS.findIndex(l => l.chapter === 3);
+const start = LEVELS.findIndex(l => l.chapter === 4);
 for (const level of LEVELS.slice(start)) {
   test(`Masterworks: ${level.name} is solvable and has no two-part shortcut`, () => {
     const sol = level.handSol;

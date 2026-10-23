@@ -36,6 +36,15 @@ function drawStatics() {
     g.stroke();
     g.fillStyle = '#07080a'; for (const [ax, ay] of [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) { g.beginPath(); g.arc(x + ax, y + ay, 0.035, 0, 7); g.fill(); }
   }
+  for (const q of L.gates || []) {
+    g.fillStyle = '#12171d'; g.strokeStyle = '#71808b'; g.lineWidth = 0.018;
+    for (const [y,h] of [[0,q.y+0.5-q.gap],[q.y+0.5+q.gap,L.h-q.y-0.5-q.gap]]) {
+      g.fillRect(q.x+0.46,y,0.08,h); g.strokeRect(q.x+0.46,y,0.08,h);
+    }
+    g.fillStyle = '#ffcf7f';
+    g.fillRect(q.x+0.37,q.y+0.5-q.gap-0.025,0.26,0.025);
+    g.fillRect(q.x+0.37,q.y+0.5+q.gap,0.26,0.025);
+  }
   // engraved scale along two edges, like a real breadboard
   if (S.screen === 'play' && V.cell >= 40) {
     setScreen(g);
@@ -422,7 +431,23 @@ function cellBody(g, cx, cy, tg, lw) {
   if (col) { g.fillStyle = rgba(col, 0.24); g.beginPath(); g.arc(cx, cy, face, 0, 7); g.fill(); g.strokeStyle = rgba(col, 0.7); g.lineWidth = lw * 1.5; g.stroke(); }
   g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = Math.max(lw, 0.012); g.beginPath(); g.arc(cx, cy, face * 0.82, Math.PI * 1.08, Math.PI * 1.42); g.stroke();
 }
+function drawProfileTarget(tg, i) {
+  const p = S.res && S.res.profiles[i], n = tg.bins || 5, half = tg.half || 0.4;
+  ctx.save(); ctx.translate(tg.x+0.5, tg.y+0.5); ctx.rotate((tg.a || 0)*RAD);
+  ctx.fillStyle = '#12171d'; ctx.strokeStyle = '#8997a2'; ctx.lineWidth = 0.02;
+  rr(ctx,-0.10,-half-0.09,0.25,half*2+0.18,0.05); ctx.fill(); ctx.stroke();
+  for (let k=0;k<n;k++) {
+    const v = p ? p.bins[k] : 0, on = v >= (tg.binNeed || 5)-1e-6;
+    ctx.fillStyle = on ? '#ffdc95' : v ? '#85612d' : '#29343e';
+    ctx.fillRect(-0.07,-half+k*2*half/n+0.012,0.17,2*half/n-0.024);
+    if(on) { ctx.shadowBlur=9;ctx.shadowColor='#ffd88b';ctx.fillRect(-0.07,-half+k*2*half/n+0.012,0.05,2*half/n-0.024);ctx.shadowBlur=0; }
+  }
+  // Arrow points in the accepted arrival direction.
+  ctx.strokeStyle='#d6e1e8';ctx.lineWidth=0.018;ctx.beginPath();ctx.moveTo(-0.35,-half-0.2);ctx.lineTo(0.08,-half-0.2);ctx.lineTo(-0.02,-half-0.26);ctx.moveTo(0.08,-half-0.2);ctx.lineTo(-0.02,-half-0.14);ctx.stroke();
+  ctx.restore();
+}
 function drawTarget(tg, i, t) {
+  if (tg.profile) { drawProfileTarget(tg, i); return; }
   const res = S.res, lm = res ? res.lm[i] : 0, on = res ? res.lit[i] : false;
   const cx = tg.x + 0.5 + (tg.ox || 0), cy = tg.y + 0.5 + (tg.oy || 0), { r, ring, R, pin } = cellGeom(tg);
   const col = tg.color && tg.color !== 'any' ? SPEC[tg.color].rgb : SPEC.W.rgb;
@@ -481,9 +506,9 @@ function drawLabels() {
   L.sources.forEach(s => labelAt(s.x + 0.5, s.y + 0.5, [[s.color && s.color !== 'W' ? `Laser · ${SPEC[s.color].nm} nm` : 'White source']], s.a % 180 ? 0.46 : 0.44));
   L.targets.forEach((tg, i) => {
     const lm = res ? res.lm[i] : 0, on = res && res.lit[i];
-    const nm = tg.color && tg.color !== 'any' ? `${SPEC[tg.color].nm} nm cell` : (tg.r && tg.r <= 0.12 ? 'Pinhole cell' : 'Photocell');
+    const nm = tg.profile ? (tg.tolerance ? 'Parallel receiver' : 'Strip receiver') : tg.color && tg.color !== 'any' ? `${SPEC[tg.color].nm} nm cell` : (tg.r && tg.r <= 0.12 ? 'Pinhole cell' : 'Photocell');
     const fmt = v => tg.need < 10 ? v.toFixed(1) : Math.round(v);
-    labelAt(tg.x + 0.5 + (tg.ox || 0), tg.y + 0.5 + (tg.oy || 0), [[nm], [`${fmt(lm)} / ${fmt(tg.need)} lm`, true, on ? '#ffc366' : 'rgba(216,221,227,0.92)']], cellGeom(tg).R + 0.03);
+    labelAt(tg.x + 0.5 + (tg.ox || 0), tg.y + 0.5 + (tg.oy || 0), [[nm], [`${fmt(lm)} / ${fmt(tg.need)} lm`, true, on ? '#ffc366' : 'rgba(216,221,227,0.92)']], (tg.profile ? tg.half + 0.12 : cellGeom(tg).R + 0.03));
   });
   for (const p of (L.fixed || [])) if (p.type !== 'fiber' && p.type !== 'bend') labelAt(p.x + 0.5, p.y + 0.5, [[PIECES[p.type].name]], 0.42);
   for (const m of (L.mirage || [])) labelAt(m.x + m.w / 2, m.y + m.h - 0.62, [['Hot plate · mirage']], 0);

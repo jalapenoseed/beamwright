@@ -108,6 +108,9 @@ body.has-ov #app, body.has-ov #title { visibility: hidden; }
 .leds { display: flex; gap: 12px; align-items: center; }
 .leds i { width: 14px; height: 14px; display: block; }
 
+#objective { position:absolute; top:8px; left:50%; transform:translateX(-50%); max-width:calc(100% - 12px); width:max-content; padding:8px 12px; border:1px solid #56616c; border-radius:5px; background:rgba(16,21,27,.94); color:#e0e7ed; font:12px/1.4 var(--f-mono); text-align:center; pointer-events:none; }
+#objective.complete { border-color:#e8bc72; color:#ffdc95; }
+body.on-title #objective, body.in-maker #objective { display:none; }
 /* title */
 #title { place-items: end center; padding-bottom: max(9vh, env(safe-area-inset-bottom, 0px)); }
 .title-wrap { display: grid; gap: 16px; justify-items: center; text-align: center; max-width: 640px; }
@@ -262,6 +265,7 @@ button:focus-visible, .input:focus-visible { outline: 3px solid var(--vfd); outl
   <main id="stage" aria-label="Optics bench">
     <canvas id="cv"></canvas>
     <canvas id="bv"></canvas>
+    <div id="objective" role="status" aria-live="polite" hidden></div>
   </main>
   <footer class="drawer">
     <div class="status" id="status" aria-live="polite"></div>
@@ -285,12 +289,15 @@ button:focus-visible, .input:focus-visible { outline: 3px solid var(--vfd); outl
     <div class="presents etch"><b>Jalapeño Seed Productions</b> presents</div>
     <h1 class="sr">Beamwright</h1>
     <div id="logoSlot" aria-hidden="true"></div>
-    <p class="sub etch">An optics bench puzzle. Bounce, bend, split and focus light until every photocell is lit.</p>
+    <p class="sub etch">Shape the light. Focus it to a needle, spread it across a receiver, and master ten intricate new maps.</p>
     <div class="row">
-      <button class="key big accent" data-plate="accent" id="startBtn">switch on the bench</button>
+      <button class="key big accent" data-plate="accent" id="titleMasterworks">play Masterworks</button>
+      <button class="key big" data-plate="key" id="titleShape">play Shape the Light</button>
+      <button class="key big" data-plate="key" id="startBtn">original campaign</button>
       <button class="key big" data-plate="key" id="titleLevels">choose bench</button>
       <button class="key big" data-plate="key" id="titleFree">free bench</button>
       <button class="key big" data-plate="key" id="titleMaker">bench maker</button>
+      <button class="key big" data-plate="key" id="voiceBtn">sound: glass</button>
       <button class="key big" data-plate="key" id="titleSkins">skins &amp; readability</button>
     </div>
   </div>
@@ -307,7 +314,7 @@ button:focus-visible, .input:focus-visible { outline: 3px solid var(--vfd); outl
 
 <div class="ov modal" id="levels" hidden data-clip>
   <div class="panel wide" data-plate="panel">
-    <div class="head"><div><div class="legend etch" id="levelCount">optics lab · 32 benches</div><h2 class="etch">Choose a bench</h2></div><button class="key" data-plate="key" id="levelsClose">close</button></div>
+    <div class="head"><div><div class="legend etch" id="levelCount">optics lab · 36 benches</div><h2 class="etch">Choose a bench</h2></div><button class="key" data-plate="key" id="levelsClose">close</button></div>
     <div class="picker" id="levelGrid"></div>
   </div>
 </div>
@@ -456,7 +463,18 @@ function buildScene(level, placed) {
   // fiber ends that touch another fiber end are joined: light passes straight across
   for (const e of ports) e.joined = ports.some(f => f !== e && Math.hypot(f.mx - e.mx, f.my - e.my) < 0.03);
   level.sources.forEach((s, i) => objs.push({ kind: 'circ', id: 's' + i, cx: s.x + 0.5, cy: s.y + 0.5, r: 0.3, absorb: true }));
-  level.targets.forEach((t, i) => objs.push({ kind: 'circ', id: 't' + i, ti: i, cx: t.x + 0.5 + (t.ox || 0), cy: t.y + 0.5 + (t.oy || 0), r: t.r || 0.3, color: t.color || 'any' }));
+  level.targets.forEach((t, i) => {
+    const base = { id: 't' + i, ti: i, cx: t.x + 0.5 + (t.ox || 0), cy: t.y + 0.5 + (t.oy || 0), color: t.color || 'any' };
+    if (t.profile) {
+      const a = (t.a || 0) * Math.PI / 180;
+      objs.push({ ...base, kind: 'seg', act: 'sensor', tx: -Math.sin(a), ty: Math.cos(a), nx: Math.cos(a), ny: Math.sin(a), half: t.half || 0.4 });
+    } else objs.push({ ...base, kind: 'circ', r: t.r || 0.3 });
+  });
+  // An aperture is physical absorbing steel, with an open slit through its centre.
+  for (const g of level.gates || []) {
+    objs.push({kind:'box', id:'w', x0:g.x+0.46, x1:g.x+0.54, y0:0, y1:g.y+0.5-g.gap});
+    objs.push({kind:'box', id:'w', x0:g.x+0.46, x1:g.x+0.54, y0:g.y+0.5+g.gap, y1:level.h});
+  }
   for (const [x, y] of level.walls || []) objs.push({ kind: 'box', id: 'w', x0: x, y0: y, x1: x + 1, y1: y + 1 });
   const zones = [];
   for (const m of level.mirage || []) {
@@ -533,14 +551,17 @@ function trace(level, placed, opts = {}) {
   const { objs, all, zones } = buildScene(level, placed);
   const segs = [];
   const tgt = level.targets.map(() => 0);
+  const profiles = level.targets.map(t => t.profile ? { bins: Array(t.bins || 5).fill(0), accepted: 0, anglePower: 0 } : null);
   const hits = {};
   const stack = [];
   level.sources.forEach(s => {
     const a = s.a * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);
     const px = -dy, py = dx;
-    for (let k = 0; k < RAYS_PER_BEAM; k++) {
-      const off = (k - (RAYS_PER_BEAM - 1) / 2) * RAY_SPACING;
-      stack.push({ x: s.x + 0.5 + dx * 0.32 + px * off, y: s.y + 0.5 + dy * 0.32 + py * off, dx, dy, I: 1 / RAYS_PER_BEAM, c: s.color || 'W', d: 0, k, st: 0, L: 0 });
+    const count = s.rays || RAYS_PER_BEAM;
+    const spacing = s.width == null ? RAY_SPACING : s.width / Math.max(1, count - 1);
+    for (let k = 0; k < count; k++) {
+      const off = (k - (count - 1) / 2) * spacing;
+      stack.push({ x: s.x + 0.5 + dx * 0.32 + px * off, y: s.y + 0.5 + dy * 0.32 + py * off, dx, dy, I: 1 / count, c: s.color || 'W', d: 0, k, st: 0, L: 0 });
     }
   });
   let guard = 0;
@@ -566,6 +587,20 @@ function trace(level, placed, opts = {}) {
     if (r.d > 80 || r.I < 0.004) { seg.ev = 'fade'; continue; }
     if (o.id && o.id !== 'w' && o.id !== 'z') hits[o.id] = (hits[o.id] || 0) + r.I;
     const next = (ndx, ndy, I, c) => stack.push({ x: hx + ndx * 1e-5, y: hy + ndy * 1e-5, dx: ndx, dy: ndy, I, c: c || r.c, d: r.d + 1, k: r.k, st: r.st, L: r.L + h.s });
+    if (o.act === 'sensor') {
+      const tg = level.targets[o.ti], p = profiles[o.ti];
+      const forward = r.dx * o.nx + r.dy * o.ny;
+      const angle = Math.acos(Math.max(-1, Math.min(1, forward))) * 180 / Math.PI;
+      if (o.color === 'any' || o.color === r.c) {
+        tgt[o.ti] += r.I; seg.ti = o.ti;
+        if (angle <= (tg.tolerance == null ? 89 : tg.tolerance)) {
+          const bin = Math.max(0, Math.min(p.bins.length - 1, Math.floor((h.h + o.half) / (2 * o.half) * p.bins.length)));
+          p.bins[bin] += r.I * LM_PER_BEAM; p.accepted += r.I * LM_PER_BEAM;
+        }
+        p.anglePower += angle * r.I * LM_PER_BEAM;
+      }
+      seg.ev = 'target'; continue;
+    }
     if (o.kind === 'circ') {
       const counts = o.ti !== undefined && (o.color === 'any' || o.color === r.c);
       if (counts) { tgt[o.ti] += r.I; seg.ti = o.ti; }
@@ -624,12 +659,18 @@ function trace(level, placed, opts = {}) {
     else emit(r.c, r.I);
   }
   const lm = tgt.map(v => v * LM_PER_BEAM);
-  const lit = level.targets.map((t, i) => lm[i] >= t.need - 1e-6);
-  return { segs, lm, lit, hits, win: lit.every(Boolean) && lit.length > 0, all };
+  const quality = level.targets.map((t, i) => {
+    const p = profiles[i];
+    if (!p) return Math.min(1, lm[i] / t.need);
+    p.covered = p.bins.filter(v => v >= (t.binNeed || 5) - 1e-6).length;
+    p.meanAngle = lm[i] ? p.anglePower / lm[i] : 0;
+    return Math.min(1, p.accepted / t.need, ...p.bins.map(v => v / (t.binNeed || 5)));
+  });
+  const lit = quality.map(q => q >= 1 - 1e-6);
+  return { segs, lm, lit, profiles, quality, hits, win: lit.every(Boolean) && lit.length > 0, all };
 }
 
 if (typeof module !== 'undefined') module.exports = { trace, PIECES, PIECE_ORDER, SPEC, BANDS, buildScene, BEND_R1, BEND_R2 };
-
 
 
 // Levels: x = column, y = row (0 at top). Angles in degrees, 0 = right, 90 = down.
@@ -821,10 +862,40 @@ const LEVELS = [
     fixed: [{ type: 'fiber', x: 3, y: 3, a: 0 }, { type: 'fiber', x: 4, y: 3, a: 0 }, { type: 'bend', x: 5, y: 3, a: 0 }, { type: 'fiber', x: 5, y: 4, a: 90 }, { type: 'fiber', x: 5, y: 5, a: 90 }],
     inv: { splitter: 1, mirror: 1, cateye: 1 },
   },
-  // ---------------- Chapter III: Masterworks ----------------
+  // ---------------- Chapter III: shape the light ----------------
+  {
+    name: 'Needle of Light', w: 9, h: 7, chapter: 3, shaping: true,
+    tip: 'Gather all nine rays into the tiny iris. Slide the convex lens until the bright focus sits inside it. Tap a part, then tap a hole to place it.',
+    sources: [{x:0,y:3,a:0,rays:9,width:0.64}],
+    targets: [{x:6,y:3,r:0.045,need:95}], walls: [], inv: {convex:1},
+    handSol: [{type:'convex',x:4,y:3,a:90}],
+  },
+  {
+    name: 'Paint with Light', w: 9, h: 7, shaping: true,
+    tip: 'Light all five strips of the receiver. A narrow bright spot does not count: spread the beam with the concave lens. Each strip needs 10 lm.',
+    sources: [{x:0,y:3,a:0,rays:9,width:0.32}],
+    targets: [{x:6,y:3,profile:true,half:0.55,bins:5,binNeed:10,need:95}], walls: [], inv: {concave:1},
+    handSol: [{type:'concave',x:4,y:3,a:90}],
+  },
+  {
+    name: 'Twin Focus', w: 9, h: 8, shaping: true,
+    tip: 'Split the light, then focus both branches into their tiny irises. Each needs 45 lm at the same time. A splitter shares energy; it does not create more.',
+    sources: [{x:0,y:2,a:0,rays:9,width:0.48}],
+    targets: [{x:8,y:2,r:0.045,need:45},{x:3,y:7,r:0.045,need:45}], walls: [], inv: {splitter:1,convex:2},
+    handSol: [{type:'splitter',x:3,y:2,a:45},{type:'convex',x:6,y:2,a:90},{type:'convex',x:3,y:5,a:0}],
+  },
+  {
+    name: 'Through the Needle', w: 11, h: 7, shaping: true,
+    tip: 'Focus through the slit, then use a second convex lens to make a wide parallel beam again. Fill all five strips with rays arriving within 2 degrees of straight.',
+    sources: [{x:0,y:3,a:0,rays:9,width:0.64}],
+    targets: [{x:10,y:3,profile:true,half:0.4,bins:5,binNeed:10,need:95,tolerance:2}],
+    gates: [{x:5,y:3,gap:0.055}], walls: [], inv: {convex:2},
+    handSol: [{type:'convex',x:3,y:3,a:90},{type:'convex',x:7,y:3,a:90}],
+  },
+  // ---------------- Chapter IV: Masterworks ----------------
   // Explicit solutions keep these deeper puzzles verifiable without an exponential solver search.
   {
-    name: 'Switchback', w: 11, h: 8, chapter: 3,
+    name: 'Switchback', w: 11, h: 8, chapter: 4,
     tip: 'Two barriers, opposite openings. Plan the entire route before spending your six mirrors.',
     sources: [{ x: 0, y: 1, a: 0 }],
     targets: [{ x: 10, y: 6, need: 90 }],
@@ -919,7 +990,6 @@ const LEVELS = [
 if (typeof module !== 'undefined') module.exports = { LEVELS };
 
 
-
 const SOLS = {"0":{"par":1,"sol":[{"type":"mirror","x":4,"y":3,"a":135}],"count":1},"1":{"par":3,"sol":[{"type":"mirror","x":1,"y":1,"a":45},{"type":"mirror","x":1,"y":3,"a":45},{"type":"mirror","x":6,"y":3,"a":135}],"count":6},"2":{"par":1,"sol":[{"type":"convex","x":2,"y":2,"a":45}],"count":29},"3":{"par":1,"sol":[{"type":"cmirror","x":4,"y":3,"a":135}],"count":1},"4":{"par":1,"sol":[{"type":"block","x":1,"y":2,"a":15}],"count":10},"5":{"par":1,"sol":[{"type":"concave","x":1,"y":3,"a":45}],"count":22},"6":{"par":2,"sol":[{"type":"splitter","x":1,"y":3,"a":135},{"type":"mirror","x":1,"y":0,"a":135}],"count":4},"7":{"par":1,"sol":[{"type":"prism","x":7,"y":4,"a":45}],"count":5},"8":{"par":1,"sol":[{"type":"xmirror","x":7,"y":1,"a":60}],"count":1},"9":{"par":3,"sol":[{"type":"mirror","x":1,"y":5,"a":135},{"type":"mirror","x":1,"y":0,"a":135},{"type":"convex","x":4,"y":0,"a":45}],"count":103},"10":{"par":2,"sol":[{"type":"prism","x":7,"y":1,"a":45},{"type":"mirror","x":5,"y":2,"a":135}],"count":39},"11":{"par":3,"sol":[{"type":"mirror","x":5,"y":5,"a":45},{"type":"mirror","x":5,"y":6,"a":15},{"type":"mirror","x":5,"y":1,"a":45}],"count":8},"12":{"par":2,"sol":[{"type":"mirror","x":2,"y":3,"a":15},{"type":"prism","x":4,"y":4,"a":90}],"count":13},"14":{"par":1,"sol":[{"type":"dblock","x":4,"y":3,"a":150}],"count":1},"15":{"par":2,"sol":[{"type":"splitter","x":3,"y":3,"a":135},{"type":"cateye","x":4,"y":3,"a":0}],"count":92},"16":{"par":2,"sol":[{"type":"mirror","x":1,"y":1,"a":45},{"type":"mirror","x":1,"y":5,"a":45}],"count":2},"18":{"par":1,"sol":[{"type":"mirror","x":2,"y":1,"a":30}],"count":1},"19":{"par":1,"sol":[{"type":"droplet","x":3,"y":3,"a":0}],"count":5},"20":{"par":1,"sol":[{"type":"diamond","x":5,"y":3,"a":225}],"count":13},"21":{"par":3,"sol":[{"type":"splitter","x":2,"y":1,"a":45},{"type":"mirror","x":2,"y":3,"a":45},{"type":"cateye","x":3,"y":1,"a":0}],"count":150}};
 
 // ===== Level solver =====
@@ -934,6 +1004,7 @@ const SOLVER = (() => {
     level.sources.forEach(s => add(s.x, s.y));
     level.targets.forEach(t => add(t.x, t.y));
     (level.fixed || []).forEach(p => add(p.x, p.y));
+    (level.gates || []).forEach(g => { for (let y = 0; y < level.h; y++) add(g.x, y); });
     (level.mirage || []).forEach(m => { for (let x = m.x; x < m.x + m.w; x++) for (let y = m.y; y < m.y + m.h; y++) add(x, y); });
     placed.forEach(p => add(p.x, p.y));
     return occ;
@@ -984,7 +1055,6 @@ const SOLVER = (() => {
   return { solveID };
 })();
 if (typeof module !== 'undefined') module.exports = SOLVER;
-
 
 
 // ===== Bench codes =====
@@ -1064,7 +1134,7 @@ const COMMUNITY = [{"id":"0001-zigzag","name":"Zigzag","author":"Jalapeño Seed 
 
 const REPO = "jalapenoseed/beamwright";
 
-const WORKER_SRC = "// ===== Beamwright optics engine (pure, no DOM) =====\nconst BANDS = ['R', 'O', 'Y', 'G', 'B', 'V'];\nconst SPEC = {\n  W: { rgb: [255, 212, 120], nm: null, label: 'White' },\n  R: { rgb: [255, 64, 52], nm: 650, label: 'Red' },\n  O: { rgb: [255, 140, 36], nm: 600, label: 'Orange' },\n  Y: { rgb: [255, 230, 60], nm: 575, label: 'Yellow' },\n  G: { rgb: [60, 235, 110], nm: 530, label: 'Green' },\n  B: { rgb: [60, 130, 255], nm: 470, label: 'Blue' },\n  V: { rgb: [170, 80, 255], nm: 420, label: 'Violet' },\n};\n// refractive index per wavelength band; dispersion is exaggerated so bench-sized optics fan visibly\nconst PRISM_N = { R: 1.46, O: 1.50, Y: 1.53, G: 1.57, B: 1.63, V: 1.70, W: 1.56 };\nconst WATER_N = { R: 1.30, O: 1.315, Y: 1.325, G: 1.34, B: 1.36, V: 1.38, W: 1.333 };\nconst DIAMOND_N = { R: 2.30, O: 2.35, Y: 2.39, G: 2.43, B: 2.49, V: 2.56, W: 2.42 };\n\nfunction rectPts(w, h) { return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]; }\nfunction triPts(s) {\n  const r = s / Math.sqrt(3); const p = [];\n  for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + i * 2 * Math.PI / 3; p.push([r * Math.cos(a), r * Math.sin(a)]); }\n  return p;\n}\nfunction dPts() { // half-disc: flat face on top, curved face below\n  const p = [], R = 0.42, y0 = -0.17, N = 16;\n  for (let i = 0; i <= N; i++) { const t = Math.PI * i / N; p.push([R * Math.cos(t), y0 + R * Math.sin(t)]); }\n  return p;\n}\nconst BEND_N = 10, BEND_R1 = 0.3, BEND_R2 = 0.7;\nfunction bendPts() { // quarter annulus around the cell's bottom-left corner: ports on left edge and bottom edge\n  const p = [], C = [-0.5, 0.5];\n  for (let i = 0; i <= BEND_N; i++) { const t = (Math.PI / 2) * i / BEND_N; p.push([C[0] + BEND_R2 * Math.cos(t), C[1] - BEND_R2 * Math.sin(t)]); }\n  for (let i = BEND_N; i >= 0; i--) { const t = (Math.PI / 2) * i / BEND_N; p.push([C[0] + BEND_R1 * Math.cos(t), C[1] - BEND_R1 * Math.sin(t)]); }\n  return p;\n}\nconst DIAMOND_PTS = [[-0.2, -0.32], [0.2, -0.32], [0.42, -0.12], [0, 0.42], [-0.42, -0.12]];\n\nconst PIECES = {\n  mirror:   { name: 'Plane Mirror',   shape: 'seg',  half: 0.42, act: 'mirror',  sym: 180, spec: 'R ≈ 100% · both faces' },\n  splitter: { name: 'Beam Splitter',  shape: 'seg',  half: 0.40, act: 'split',   sym: 180, spec: '50% reflect · 50% pass' },\n  convex:   { name: 'Convex Lens',    shape: 'seg',  half: 0.40, act: 'lens', f: 2,  sym: 180, spec: 'f = +2.0 cells' },\n  concave:  { name: 'Concave Lens',   shape: 'seg',  half: 0.40, act: 'lens', f: -1, sym: 180, spec: 'f = −1.0 cells' },\n  cmirror:  { name: 'Concave Mirror', shape: 'seg',  half: 0.42, act: 'cmirror', f: 2,  sym: 360, spec: 'f = +2.0 cells · front face' },\n  xmirror:  { name: 'Convex Mirror',  shape: 'seg',  half: 0.42, act: 'cmirror', f: -1, sym: 360, spec: 'f = −1.0 cells · front face' },\n  block:    { name: 'Glass Block',    shape: 'poly', pts: rectPts(0.84, 0.56), n: 1.52, sym: 180, spec: 'n = 1.52 · crown glass' },\n  prism:    { name: 'Prism',          shape: 'poly', pts: triPts(0.82), tab: PRISM_N, sym: 120, spec: 'n = 1.46–1.70 · flint' },\n  dblock:   { name: 'Critical Angle Block', shape: 'poly', pts: dPts(), n: 1.5, sym: 360, spec: 'n = 1.50 · critical angle 42°' },\n  cateye:   { name: \"Cat's Eye\",      shape: 'disc', r: 0.34, n: 2.0, mirror: true, sym: 360, spec: 'n = 2.0 ball · silvered back · returns light' },\n  droplet:  { name: 'Water Droplet',  shape: 'disc', r: 0.36, tab: WATER_N, partial: 0.4, sym: 15, spec: 'n = 1.30–1.38 · reflects inside' },\n  diamond:  { name: 'Diamond',        shape: 'poly', pts: DIAMOND_PTS, tab: DIAMOND_N, sym: 360, spec: 'n = 2.30–2.56 · brilliant cut' },\n  fiber:    { name: 'Optical Fiber',  shape: 'poly', pts: rectPts(1.0, 0.4), n: 2.2, ports: [1, 3], sym: 180, spec: 'core n = 2.2 · ends join up' },\n  bend:     { name: 'Fiber Bend',     shape: 'poly', pts: bendPts(), n: 2.2, ports: [BEND_N, 2 * BEND_N + 1], sym: 360, spec: 'core n = 2.2 · 90° turn' },\n};\nconst PIECE_ORDER = ['mirror', 'cmirror', 'xmirror', 'convex', 'concave', 'block', 'prism', 'splitter', 'dblock', 'cateye', 'droplet', 'diamond', 'fiber', 'bend'];\n\nconst RAYS_PER_BEAM = 5, RAY_SPACING = 0.08, LM_PER_BEAM = 100;\nconst EPS = 1e-7, MIRAGE_STEP = 0.08;\n\nfunction cross(ax, ay, bx, by) { return ax * by - ay * bx; }\n\nfunction buildScene(level, placed) {\n  const objs = [];\n  const all = [];\n  (level.fixed || []).forEach((p, i) => all.push({ ...p, id: 'f' + i, fixed: true }));\n  placed.forEach((p, i) => all.push({ ...p, id: p.uid || ('p' + i) }));\n  const ports = [];\n  for (const p of all) {\n    const def = PIECES[p.type];\n    const cx = p.x + 0.5, cy = p.y + 0.5, a = p.a * Math.PI / 180;\n    const tx = Math.cos(a), ty = Math.sin(a);\n    if (def.shape === 'seg') {\n      objs.push({ kind: 'seg', id: p.id, act: def.act, f: def.f, cx, cy, tx, ty, nx: -ty, ny: tx, half: def.half });\n    } else if (def.shape === 'disc') {\n      objs.push({ kind: 'disc', id: p.id, cx, cy, r: def.r, n: def.n, tab: def.tab, partial: def.partial || 0, mir: def.mirror ? [tx, ty] : null });\n    } else {\n      const pts = def.pts.map(([u, v]) => [cx + u * tx - v * ty, cy + u * ty + v * tx]);\n      let area2 = 0;\n      for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; area2 += x1 * y2 - x2 * y1; }\n      const edges = [];\n      for (let i = 0; i < pts.length; i++) {\n        const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];\n        const ex = x2 - x1, ey = y2 - y1, L = Math.hypot(ex, ey);\n        const nx = area2 > 0 ? ey / L : -ey / L, ny = area2 > 0 ? -ex / L : ex / L;\n        const port = !!(def.ports && def.ports.includes(i));\n        const e = { x1, y1, ex, ey, nx, ny, port, mx: x1 + ex / 2, my: y1 + ey / 2 };\n        edges.push(e); if (port) ports.push(e);\n      }\n      objs.push({ kind: 'poly', id: p.id, edges, n: def.n, tab: def.tab, fiber: !!def.ports });\n    }\n  }\n  // fiber ends that touch another fiber end are joined: light passes straight across\n  for (const e of ports) e.joined = ports.some(f => f !== e && Math.hypot(f.mx - e.mx, f.my - e.my) < 0.03);\n  level.sources.forEach((s, i) => objs.push({ kind: 'circ', id: 's' + i, cx: s.x + 0.5, cy: s.y + 0.5, r: 0.3, absorb: true }));\n  level.targets.forEach((t, i) => objs.push({ kind: 'circ', id: 't' + i, ti: i, cx: t.x + 0.5 + (t.ox || 0), cy: t.y + 0.5 + (t.oy || 0), r: t.r || 0.3, color: t.color || 'any' }));\n  for (const [x, y] of level.walls || []) objs.push({ kind: 'box', id: 'w', x0: x, y0: y, x1: x + 1, y1: y + 1 });\n  const zones = [];\n  for (const m of level.mirage || []) {\n    const z = { kind: 'zone', id: 'z', x0: m.x, y0: m.y, x1: m.x + m.w, y1: m.y + m.h - 0.12, k: m.k || 0.3 };\n    zones.push(z); objs.push(z);\n    objs.push({ kind: 'box', id: 'w', x0: m.x, y0: m.y + m.h - 0.12, x1: m.x + m.w, y1: m.y + m.h }); // hot plate\n  }\n  return { objs, all, zones };\n}\n\nfunction slab(o, px, py, dx, dy) {\n  let t0 = -Infinity, t1 = Infinity;\n  if (Math.abs(dx) < 1e-12) { if (px < o.x0 || px > o.x1) return Infinity; }\n  else { let a = (o.x0 - px) / dx, b = (o.x1 - px) / dx; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); }\n  if (Math.abs(dy) < 1e-12) { if (py < o.y0 || py > o.y1) return Infinity; }\n  else { let a = (o.y0 - py) / dy, b = (o.y1 - py) / dy; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); }\n  if (t0 > t1 || t0 <= EPS) return Infinity;\n  return t0;\n}\n\nfunction hitScene(objs, px, py, dx, dy, W, H) {\n  let best = Infinity, bo = null, bh = 0, be = null;\n  for (const o of objs) {\n    if (o.kind === 'seg') {\n      const den = cross(dx, dy, o.tx, o.ty); if (Math.abs(den) < 1e-12) continue;\n      const qx = o.cx - px, qy = o.cy - py;\n      const s = cross(qx, qy, o.tx, o.ty) / den;\n      if (s <= EPS || s >= best) continue;\n      const u = cross(qx, qy, dx, dy) / den;\n      if (Math.abs(u) > o.half) continue;\n      best = s; bo = o; bh = u;\n    } else if (o.kind === 'poly') {\n      for (const e of o.edges) {\n        const den = cross(dx, dy, e.ex, e.ey); if (Math.abs(den) < 1e-12) continue;\n        const qx = e.x1 - px, qy = e.y1 - py;\n        const s = cross(qx, qy, e.ex, e.ey) / den;\n        if (s <= EPS || s >= best) continue;\n        const u = cross(qx, qy, dx, dy) / den;\n        if (u < 0 || u > 1) continue;\n        best = s; bo = o; be = e;\n      }\n    } else if (o.kind === 'circ' || o.kind === 'disc') {\n      const qx = px - o.cx, qy = py - o.cy;\n      const b = qx * dx + qy * dy, c = qx * qx + qy * qy - o.r * o.r;\n      const disc = b * b - c; if (disc < 0) continue;\n      const sq = Math.sqrt(disc);\n      let s = -b - sq; if (s <= EPS && o.kind === 'disc') s = -b + sq;\n      if (s <= EPS || s >= best) continue;\n      best = s; bo = o;\n    } else if (o.kind === 'box' || o.kind === 'zone') {\n      const s = slab(o, px, py, dx, dy);\n      if (s < best) { best = s; bo = o; }\n    }\n  }\n  let sb = Infinity;\n  if (dx > 0) sb = Math.min(sb, (W - px) / dx); else if (dx < 0) sb = Math.min(sb, -px / dx);\n  if (dy > 0) sb = Math.min(sb, (H - py) / dy); else if (dy < 0) sb = Math.min(sb, -py / dy);\n  if (sb < best) return { s: sb, o: null };\n  return { s: best, o: bo, h: bh, e: be };\n}\n\nfunction refract(dx, dy, nx, ny, n1, n2) {\n  // n points against d (toward the incoming side)\n  const cosi = -(dx * nx + dy * ny), eta = n1 / n2;\n  const k = 1 - eta * eta * (1 - cosi * cosi);\n  if (k < 0) return null;\n  const c = eta * cosi - Math.sqrt(k);\n  const rx = eta * dx + c * nx, ry = eta * dy + c * ny, L = Math.hypot(rx, ry);\n  return [rx / L, ry / L];\n}\n\nfunction trace(level, placed, opts = {}) {\n  const W = level.w, H = level.h;\n  const { objs, all, zones } = buildScene(level, placed);\n  const segs = [];\n  const tgt = level.targets.map(() => 0);\n  const hits = {};\n  const stack = [];\n  level.sources.forEach(s => {\n    const a = s.a * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);\n    const px = -dy, py = dx;\n    for (let k = 0; k < RAYS_PER_BEAM; k++) {\n      const off = (k - (RAYS_PER_BEAM - 1) / 2) * RAY_SPACING;\n      stack.push({ x: s.x + 0.5 + dx * 0.32 + px * off, y: s.y + 0.5 + dy * 0.32 + py * off, dx, dy, I: 1 / RAYS_PER_BEAM, c: s.color || 'W', d: 0, k, st: 0, L: 0 });\n    }\n  });\n  let guard = 0;\n  const maxSegs = opts.maxSegs || 6000;\n  while (stack.length && guard++ < maxSegs) {\n    const r = stack.pop();\n    const h = hitScene(objs, r.x, r.y, r.dx, r.dy, W, H);\n    // inside hot air: march in small steps, bending away from the hot plate\n    const z = zones.length ? zones.find(q => r.x > q.x0 && r.x < q.x1 && r.y > q.y0 && r.y < q.y1) : null;\n    if (z && h.s > MIRAGE_STEP && r.st < 500) {\n      const nx = r.x + r.dx * MIRAGE_STEP, ny = r.y + r.dy * MIRAGE_STEP;\n      segs.push({ x1: r.x, y1: r.y, x2: nx, y2: ny, c: r.c, I: r.I, k: r.k, d0: r.L, d1: r.L + MIRAGE_STEP, ev: '' });\n      let dx = r.dx, dy = r.dy - z.k * MIRAGE_STEP; const L = Math.hypot(dx, dy);\n      stack.push({ ...r, x: nx, y: ny, dx: dx / L, dy: dy / L, st: r.st + 1, L: r.L + MIRAGE_STEP });\n      continue;\n    }\n    const hx = r.x + r.dx * h.s, hy = r.y + r.dy * h.s;\n    // every segment records how far the light has travelled and what it met at the end (drives the sound)\n    const seg = { x1: r.x, y1: r.y, x2: hx, y2: hy, c: r.c, I: r.I, k: r.k, d0: r.L, d1: r.L + h.s, ev: '' };\n    segs.push(seg);\n    const o = h.o;\n    if (!o) { seg.ev = 'edge'; continue; }\n    if (r.d > 80 || r.I < 0.004) { seg.ev = 'fade'; continue; }\n    if (o.id && o.id !== 'w' && o.id !== 'z') hits[o.id] = (hits[o.id] || 0) + r.I;\n    const next = (ndx, ndy, I, c) => stack.push({ x: hx + ndx * 1e-5, y: hy + ndy * 1e-5, dx: ndx, dy: ndy, I, c: c || r.c, d: r.d + 1, k: r.k, st: r.st, L: r.L + h.s });\n    if (o.kind === 'circ') {\n      const counts = o.ti !== undefined && (o.color === 'any' || o.color === r.c);\n      if (counts) { tgt[o.ti] += r.I; seg.ti = o.ti; }\n      seg.ev = counts ? 'target' : 'wall';\n      continue;\n    }\n    if (o.kind === 'box') { seg.ev = 'wall'; continue; }\n    if (o.kind === 'zone') { next(r.dx, r.dy, r.I); continue; }\n    seg.ev = o.kind === 'seg' ? o.act : '';\n    if (o.kind === 'seg') {\n      const dn = r.dx * o.nx + r.dy * o.ny;\n      if (o.act === 'mirror' || o.act === 'split') {\n        const rx = r.dx - 2 * dn * o.nx, ry = r.dy - 2 * dn * o.ny;\n        if (o.act === 'mirror') next(rx, ry, r.I);\n        else { next(rx, ry, r.I / 2); next(r.dx, r.dy, r.I / 2); }\n      } else if (o.act === 'lens') {\n        const sgn = dn >= 0 ? 1 : -1, ax = o.nx * sgn, ay = o.ny * sgn;\n        const da = r.dx * ax + r.dy * ay; const dt = r.dx * o.tx + r.dy * o.ty;\n        const s = dt / Math.max(da, 0.05) - h.h / o.f;\n        const L = Math.hypot(1, s); next((ax + s * o.tx) / L, (ay + s * o.ty) / L, r.I);\n      } else if (o.act === 'cmirror') {\n        if (dn >= 0) { seg.ev = 'wall'; continue; } // back face absorbs (front faces +n)\n        const rx = r.dx - 2 * dn * o.nx, ry = r.dy - 2 * dn * o.ny;\n        const da = rx * o.nx + ry * o.ny, dt = rx * o.tx + ry * o.ty;\n        const s = dt / Math.max(da, 0.05) - h.h / o.f;\n        const L = Math.hypot(1, s); next((o.nx + s * o.tx) / L, (o.ny + s * o.ty) / L, r.I);\n      }\n      continue;\n    }\n    // refracting bodies: polygons and discs\n    let enx, eny;\n    if (o.kind === 'poly') {\n      const e = h.e;\n      if (e.port && e.joined) { next(r.dx, r.dy, r.I); continue; }   // silent hand-over between fibers\n      enx = e.nx; eny = e.ny;\n    } else {\n      enx = (hx - o.cx) / o.r; eny = (hy - o.cy) / o.r;\n      if (o.mir && enx * o.mir[0] + eny * o.mir[1] > 0) { // silvered back of the cat's eye\n        const dd = r.dx * enx + r.dy * eny; next(r.dx - 2 * dd * enx, r.dy - 2 * dd * eny, r.I); seg.ev = 'retro'; continue;\n      }\n    }\n    const dn = r.dx * enx + r.dy * eny, entering = dn < 0;\n    const nx = entering ? enx : -enx, ny = entering ? eny : -eny; // against d\n    const part = !entering && o.partial ? o.partial : 0;\n    seg.ev = entering ? (o.tab && r.c === 'W' ? 'disperse' : 'glassIn') : 'glassOut';\n    const emit = (c, I) => {\n      const ng = o.tab ? o.tab[c] : o.n;\n      const n1 = entering ? 1 : ng, n2 = entering ? ng : 1;\n      const t = refract(r.dx, r.dy, nx, ny, n1, n2);\n      const dd = r.dx * nx + r.dy * ny, rx = r.dx - 2 * dd * nx, ry = r.dy - 2 * dd * ny;\n      if (!t) { next(rx, ry, I, c); seg.ev = o.fiber ? 'fiberTir' : 'tir'; }\n      else if (part) { next(t[0], t[1], I * (1 - part), c); next(rx, ry, I * part, c); }\n      else next(t[0], t[1], I, c);\n    };\n    if (o.tab && entering && r.c === 'W') { for (const b of BANDS) emit(b, r.I / BANDS.length); }\n    else emit(r.c, r.I);\n  }\n  const lm = tgt.map(v => v * LM_PER_BEAM);\n  const lit = level.targets.map((t, i) => lm[i] >= t.need - 1e-6);\n  return { segs, lm, lit, hits, win: lit.every(Boolean) && lit.length > 0, all };\n}\n\nif (typeof module !== 'undefined') module.exports = { trace, PIECES, PIECE_ORDER, SPEC, BANDS, buildScene, BEND_R1, BEND_R2 };\n\n\n// ===== Level solver =====\n// Brute force with iterative deepening, so the first solution found uses the fewest parts. It only tries\n// cells the light currently crosses (a part anywhere else cannot change anything), every allowed angle,\n// and every part left in the inventory. Used by tools/ in Node and by the bench maker's \"check\" in a worker.\nconst SOLVER = (() => {\n  const E = typeof trace !== 'undefined' ? { trace, PIECES } : require('./engine.js');\n  function occupied(level, placed) {\n    const occ = new Set(), add = (x, y) => occ.add(x + ',' + y);\n    (level.walls || []).forEach(([x, y]) => add(x, y));\n    level.sources.forEach(s => add(s.x, s.y));\n    level.targets.forEach(t => add(t.x, t.y));\n    (level.fixed || []).forEach(p => add(p.x, p.y));\n    (level.mirage || []).forEach(m => { for (let x = m.x; x < m.x + m.w; x++) for (let y = m.y; y < m.y + m.h; y++) add(x, y); });\n    placed.forEach(p => add(p.x, p.y));\n    return occ;\n  }\n  function candCells(level, res, occ) {\n    const c = new Set();\n    for (const s of res.segs) {\n      const L = Math.hypot(s.x2 - s.x1, s.y2 - s.y1), n = Math.max(1, Math.ceil(L / 0.1));\n      for (let i = 0; i <= n; i++) {\n        const x = Math.floor(s.x1 + (s.x2 - s.x1) * i / n), y = Math.floor(s.y1 + (s.y2 - s.y1) * i / n);\n        if (x < 0 || y < 0 || x >= level.w || y >= level.h) continue;\n        const k = x + ',' + y; if (!occ.has(k)) c.add(k);\n      }\n    }\n    return [...c].map(k => k.split(',').map(Number));\n  }\n  function angles(type) { const sym = E.PIECES[type].sym, out = []; for (let a = 0; a < sym; a += 15) out.push(a); return out; }\n  // budgetMs: give up after this long (returns timedOut: true with whatever depth was finished)\n  function solveID(level, maxDepth = 3, maxSol = 3, budgetMs = Infinity) {\n    const deadline = Date.now() + budgetMs, t0 = Date.now();\n    let nodes = 0, timedOut = false;\n    if (E.trace(level, []).win) return { par: 0, sols: [[]], nodes: 1, ms: 0 };\n    for (let d = 1; d <= maxDepth; d++) {\n      const sols = [], inv = { ...level.inv };\n      for (const k in inv) if (inv[k] === Infinity || inv[k] > d) inv[k] = d;\n      (function dfs(placed, depth) {\n        if (sols.length >= maxSol || timedOut) return;\n        if ((nodes & 255) === 0 && Date.now() > deadline) { timedOut = true; return; }\n        const res = E.trace(level, placed); nodes++;\n        if (res.win) { if (placed.length === d) sols.push(placed.map(p => ({ ...p }))); return; }\n        if (depth >= d) return;\n        const cells = candCells(level, res, occupied(level, placed));\n        for (const type of Object.keys(inv)) {\n          if (!inv[type]) continue; inv[type]--;\n          for (const [x, y] of cells) for (const a of angles(type)) {\n            placed.push({ type, x, y, a }); dfs(placed, depth + 1); placed.pop();\n            if (sols.length >= maxSol || timedOut) break;\n          }\n          inv[type]++;\n          if (sols.length >= maxSol || timedOut) return;\n        }\n      })([], 0);\n      if (sols.length) return { par: d, sols, nodes, ms: Date.now() - t0 };\n      if (timedOut) return { par: null, sols: [], nodes, ms: Date.now() - t0, timedOut: true, depth: d - 1 };\n    }\n    return { par: null, sols: [], nodes, ms: Date.now() - t0 };\n  }\n  return { solveID };\n})();\nif (typeof module !== 'undefined') module.exports = SOLVER;\n\n\nonmessage = e => postMessage(SOLVER.solveID(e.data.level, e.data.depth, 3, e.data.budget));";
+const WORKER_SRC = "// ===== Beamwright optics engine (pure, no DOM) =====\nconst BANDS = ['R', 'O', 'Y', 'G', 'B', 'V'];\nconst SPEC = {\n  W: { rgb: [255, 212, 120], nm: null, label: 'White' },\n  R: { rgb: [255, 64, 52], nm: 650, label: 'Red' },\n  O: { rgb: [255, 140, 36], nm: 600, label: 'Orange' },\n  Y: { rgb: [255, 230, 60], nm: 575, label: 'Yellow' },\n  G: { rgb: [60, 235, 110], nm: 530, label: 'Green' },\n  B: { rgb: [60, 130, 255], nm: 470, label: 'Blue' },\n  V: { rgb: [170, 80, 255], nm: 420, label: 'Violet' },\n};\n// refractive index per wavelength band; dispersion is exaggerated so bench-sized optics fan visibly\nconst PRISM_N = { R: 1.46, O: 1.50, Y: 1.53, G: 1.57, B: 1.63, V: 1.70, W: 1.56 };\nconst WATER_N = { R: 1.30, O: 1.315, Y: 1.325, G: 1.34, B: 1.36, V: 1.38, W: 1.333 };\nconst DIAMOND_N = { R: 2.30, O: 2.35, Y: 2.39, G: 2.43, B: 2.49, V: 2.56, W: 2.42 };\n\nfunction rectPts(w, h) { return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]; }\nfunction triPts(s) {\n  const r = s / Math.sqrt(3); const p = [];\n  for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + i * 2 * Math.PI / 3; p.push([r * Math.cos(a), r * Math.sin(a)]); }\n  return p;\n}\nfunction dPts() { // half-disc: flat face on top, curved face below\n  const p = [], R = 0.42, y0 = -0.17, N = 16;\n  for (let i = 0; i <= N; i++) { const t = Math.PI * i / N; p.push([R * Math.cos(t), y0 + R * Math.sin(t)]); }\n  return p;\n}\nconst BEND_N = 10, BEND_R1 = 0.3, BEND_R2 = 0.7;\nfunction bendPts() { // quarter annulus around the cell's bottom-left corner: ports on left edge and bottom edge\n  const p = [], C = [-0.5, 0.5];\n  for (let i = 0; i <= BEND_N; i++) { const t = (Math.PI / 2) * i / BEND_N; p.push([C[0] + BEND_R2 * Math.cos(t), C[1] - BEND_R2 * Math.sin(t)]); }\n  for (let i = BEND_N; i >= 0; i--) { const t = (Math.PI / 2) * i / BEND_N; p.push([C[0] + BEND_R1 * Math.cos(t), C[1] - BEND_R1 * Math.sin(t)]); }\n  return p;\n}\nconst DIAMOND_PTS = [[-0.2, -0.32], [0.2, -0.32], [0.42, -0.12], [0, 0.42], [-0.42, -0.12]];\n\nconst PIECES = {\n  mirror:   { name: 'Plane Mirror',   shape: 'seg',  half: 0.42, act: 'mirror',  sym: 180, spec: 'R ≈ 100% · both faces' },\n  splitter: { name: 'Beam Splitter',  shape: 'seg',  half: 0.40, act: 'split',   sym: 180, spec: '50% reflect · 50% pass' },\n  convex:   { name: 'Convex Lens',    shape: 'seg',  half: 0.40, act: 'lens', f: 2,  sym: 180, spec: 'f = +2.0 cells' },\n  concave:  { name: 'Concave Lens',   shape: 'seg',  half: 0.40, act: 'lens', f: -1, sym: 180, spec: 'f = −1.0 cells' },\n  cmirror:  { name: 'Concave Mirror', shape: 'seg',  half: 0.42, act: 'cmirror', f: 2,  sym: 360, spec: 'f = +2.0 cells · front face' },\n  xmirror:  { name: 'Convex Mirror',  shape: 'seg',  half: 0.42, act: 'cmirror', f: -1, sym: 360, spec: 'f = −1.0 cells · front face' },\n  block:    { name: 'Glass Block',    shape: 'poly', pts: rectPts(0.84, 0.56), n: 1.52, sym: 180, spec: 'n = 1.52 · crown glass' },\n  prism:    { name: 'Prism',          shape: 'poly', pts: triPts(0.82), tab: PRISM_N, sym: 120, spec: 'n = 1.46–1.70 · flint' },\n  dblock:   { name: 'Critical Angle Block', shape: 'poly', pts: dPts(), n: 1.5, sym: 360, spec: 'n = 1.50 · critical angle 42°' },\n  cateye:   { name: \"Cat's Eye\",      shape: 'disc', r: 0.34, n: 2.0, mirror: true, sym: 360, spec: 'n = 2.0 ball · silvered back · returns light' },\n  droplet:  { name: 'Water Droplet',  shape: 'disc', r: 0.36, tab: WATER_N, partial: 0.4, sym: 15, spec: 'n = 1.30–1.38 · reflects inside' },\n  diamond:  { name: 'Diamond',        shape: 'poly', pts: DIAMOND_PTS, tab: DIAMOND_N, sym: 360, spec: 'n = 2.30–2.56 · brilliant cut' },\n  fiber:    { name: 'Optical Fiber',  shape: 'poly', pts: rectPts(1.0, 0.4), n: 2.2, ports: [1, 3], sym: 180, spec: 'core n = 2.2 · ends join up' },\n  bend:     { name: 'Fiber Bend',     shape: 'poly', pts: bendPts(), n: 2.2, ports: [BEND_N, 2 * BEND_N + 1], sym: 360, spec: 'core n = 2.2 · 90° turn' },\n};\nconst PIECE_ORDER = ['mirror', 'cmirror', 'xmirror', 'convex', 'concave', 'block', 'prism', 'splitter', 'dblock', 'cateye', 'droplet', 'diamond', 'fiber', 'bend'];\n\nconst RAYS_PER_BEAM = 5, RAY_SPACING = 0.08, LM_PER_BEAM = 100;\nconst EPS = 1e-7, MIRAGE_STEP = 0.08;\n\nfunction cross(ax, ay, bx, by) { return ax * by - ay * bx; }\n\nfunction buildScene(level, placed) {\n  const objs = [];\n  const all = [];\n  (level.fixed || []).forEach((p, i) => all.push({ ...p, id: 'f' + i, fixed: true }));\n  placed.forEach((p, i) => all.push({ ...p, id: p.uid || ('p' + i) }));\n  const ports = [];\n  for (const p of all) {\n    const def = PIECES[p.type];\n    const cx = p.x + 0.5, cy = p.y + 0.5, a = p.a * Math.PI / 180;\n    const tx = Math.cos(a), ty = Math.sin(a);\n    if (def.shape === 'seg') {\n      objs.push({ kind: 'seg', id: p.id, act: def.act, f: def.f, cx, cy, tx, ty, nx: -ty, ny: tx, half: def.half });\n    } else if (def.shape === 'disc') {\n      objs.push({ kind: 'disc', id: p.id, cx, cy, r: def.r, n: def.n, tab: def.tab, partial: def.partial || 0, mir: def.mirror ? [tx, ty] : null });\n    } else {\n      const pts = def.pts.map(([u, v]) => [cx + u * tx - v * ty, cy + u * ty + v * tx]);\n      let area2 = 0;\n      for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; area2 += x1 * y2 - x2 * y1; }\n      const edges = [];\n      for (let i = 0; i < pts.length; i++) {\n        const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];\n        const ex = x2 - x1, ey = y2 - y1, L = Math.hypot(ex, ey);\n        const nx = area2 > 0 ? ey / L : -ey / L, ny = area2 > 0 ? -ex / L : ex / L;\n        const port = !!(def.ports && def.ports.includes(i));\n        const e = { x1, y1, ex, ey, nx, ny, port, mx: x1 + ex / 2, my: y1 + ey / 2 };\n        edges.push(e); if (port) ports.push(e);\n      }\n      objs.push({ kind: 'poly', id: p.id, edges, n: def.n, tab: def.tab, fiber: !!def.ports });\n    }\n  }\n  // fiber ends that touch another fiber end are joined: light passes straight across\n  for (const e of ports) e.joined = ports.some(f => f !== e && Math.hypot(f.mx - e.mx, f.my - e.my) < 0.03);\n  level.sources.forEach((s, i) => objs.push({ kind: 'circ', id: 's' + i, cx: s.x + 0.5, cy: s.y + 0.5, r: 0.3, absorb: true }));\n  level.targets.forEach((t, i) => {\n    const base = { id: 't' + i, ti: i, cx: t.x + 0.5 + (t.ox || 0), cy: t.y + 0.5 + (t.oy || 0), color: t.color || 'any' };\n    if (t.profile) {\n      const a = (t.a || 0) * Math.PI / 180;\n      objs.push({ ...base, kind: 'seg', act: 'sensor', tx: -Math.sin(a), ty: Math.cos(a), nx: Math.cos(a), ny: Math.sin(a), half: t.half || 0.4 });\n    } else objs.push({ ...base, kind: 'circ', r: t.r || 0.3 });\n  });\n  // An aperture is physical absorbing steel, with an open slit through its centre.\n  for (const g of level.gates || []) {\n    objs.push({kind:'box', id:'w', x0:g.x+0.46, x1:g.x+0.54, y0:0, y1:g.y+0.5-g.gap});\n    objs.push({kind:'box', id:'w', x0:g.x+0.46, x1:g.x+0.54, y0:g.y+0.5+g.gap, y1:level.h});\n  }\n  for (const [x, y] of level.walls || []) objs.push({ kind: 'box', id: 'w', x0: x, y0: y, x1: x + 1, y1: y + 1 });\n  const zones = [];\n  for (const m of level.mirage || []) {\n    const z = { kind: 'zone', id: 'z', x0: m.x, y0: m.y, x1: m.x + m.w, y1: m.y + m.h - 0.12, k: m.k || 0.3 };\n    zones.push(z); objs.push(z);\n    objs.push({ kind: 'box', id: 'w', x0: m.x, y0: m.y + m.h - 0.12, x1: m.x + m.w, y1: m.y + m.h }); // hot plate\n  }\n  return { objs, all, zones };\n}\n\nfunction slab(o, px, py, dx, dy) {\n  let t0 = -Infinity, t1 = Infinity;\n  if (Math.abs(dx) < 1e-12) { if (px < o.x0 || px > o.x1) return Infinity; }\n  else { let a = (o.x0 - px) / dx, b = (o.x1 - px) / dx; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); }\n  if (Math.abs(dy) < 1e-12) { if (py < o.y0 || py > o.y1) return Infinity; }\n  else { let a = (o.y0 - py) / dy, b = (o.y1 - py) / dy; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); }\n  if (t0 > t1 || t0 <= EPS) return Infinity;\n  return t0;\n}\n\nfunction hitScene(objs, px, py, dx, dy, W, H) {\n  let best = Infinity, bo = null, bh = 0, be = null;\n  for (const o of objs) {\n    if (o.kind === 'seg') {\n      const den = cross(dx, dy, o.tx, o.ty); if (Math.abs(den) < 1e-12) continue;\n      const qx = o.cx - px, qy = o.cy - py;\n      const s = cross(qx, qy, o.tx, o.ty) / den;\n      if (s <= EPS || s >= best) continue;\n      const u = cross(qx, qy, dx, dy) / den;\n      if (Math.abs(u) > o.half) continue;\n      best = s; bo = o; bh = u;\n    } else if (o.kind === 'poly') {\n      for (const e of o.edges) {\n        const den = cross(dx, dy, e.ex, e.ey); if (Math.abs(den) < 1e-12) continue;\n        const qx = e.x1 - px, qy = e.y1 - py;\n        const s = cross(qx, qy, e.ex, e.ey) / den;\n        if (s <= EPS || s >= best) continue;\n        const u = cross(qx, qy, dx, dy) / den;\n        if (u < 0 || u > 1) continue;\n        best = s; bo = o; be = e;\n      }\n    } else if (o.kind === 'circ' || o.kind === 'disc') {\n      const qx = px - o.cx, qy = py - o.cy;\n      const b = qx * dx + qy * dy, c = qx * qx + qy * qy - o.r * o.r;\n      const disc = b * b - c; if (disc < 0) continue;\n      const sq = Math.sqrt(disc);\n      let s = -b - sq; if (s <= EPS && o.kind === 'disc') s = -b + sq;\n      if (s <= EPS || s >= best) continue;\n      best = s; bo = o;\n    } else if (o.kind === 'box' || o.kind === 'zone') {\n      const s = slab(o, px, py, dx, dy);\n      if (s < best) { best = s; bo = o; }\n    }\n  }\n  let sb = Infinity;\n  if (dx > 0) sb = Math.min(sb, (W - px) / dx); else if (dx < 0) sb = Math.min(sb, -px / dx);\n  if (dy > 0) sb = Math.min(sb, (H - py) / dy); else if (dy < 0) sb = Math.min(sb, -py / dy);\n  if (sb < best) return { s: sb, o: null };\n  return { s: best, o: bo, h: bh, e: be };\n}\n\nfunction refract(dx, dy, nx, ny, n1, n2) {\n  // n points against d (toward the incoming side)\n  const cosi = -(dx * nx + dy * ny), eta = n1 / n2;\n  const k = 1 - eta * eta * (1 - cosi * cosi);\n  if (k < 0) return null;\n  const c = eta * cosi - Math.sqrt(k);\n  const rx = eta * dx + c * nx, ry = eta * dy + c * ny, L = Math.hypot(rx, ry);\n  return [rx / L, ry / L];\n}\n\nfunction trace(level, placed, opts = {}) {\n  const W = level.w, H = level.h;\n  const { objs, all, zones } = buildScene(level, placed);\n  const segs = [];\n  const tgt = level.targets.map(() => 0);\n  const profiles = level.targets.map(t => t.profile ? { bins: Array(t.bins || 5).fill(0), accepted: 0, anglePower: 0 } : null);\n  const hits = {};\n  const stack = [];\n  level.sources.forEach(s => {\n    const a = s.a * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);\n    const px = -dy, py = dx;\n    const count = s.rays || RAYS_PER_BEAM;\n    const spacing = s.width == null ? RAY_SPACING : s.width / Math.max(1, count - 1);\n    for (let k = 0; k < count; k++) {\n      const off = (k - (count - 1) / 2) * spacing;\n      stack.push({ x: s.x + 0.5 + dx * 0.32 + px * off, y: s.y + 0.5 + dy * 0.32 + py * off, dx, dy, I: 1 / count, c: s.color || 'W', d: 0, k, st: 0, L: 0 });\n    }\n  });\n  let guard = 0;\n  const maxSegs = opts.maxSegs || 6000;\n  while (stack.length && guard++ < maxSegs) {\n    const r = stack.pop();\n    const h = hitScene(objs, r.x, r.y, r.dx, r.dy, W, H);\n    // inside hot air: march in small steps, bending away from the hot plate\n    const z = zones.length ? zones.find(q => r.x > q.x0 && r.x < q.x1 && r.y > q.y0 && r.y < q.y1) : null;\n    if (z && h.s > MIRAGE_STEP && r.st < 500) {\n      const nx = r.x + r.dx * MIRAGE_STEP, ny = r.y + r.dy * MIRAGE_STEP;\n      segs.push({ x1: r.x, y1: r.y, x2: nx, y2: ny, c: r.c, I: r.I, k: r.k, d0: r.L, d1: r.L + MIRAGE_STEP, ev: '' });\n      let dx = r.dx, dy = r.dy - z.k * MIRAGE_STEP; const L = Math.hypot(dx, dy);\n      stack.push({ ...r, x: nx, y: ny, dx: dx / L, dy: dy / L, st: r.st + 1, L: r.L + MIRAGE_STEP });\n      continue;\n    }\n    const hx = r.x + r.dx * h.s, hy = r.y + r.dy * h.s;\n    // every segment records how far the light has travelled and what it met at the end (drives the sound)\n    const seg = { x1: r.x, y1: r.y, x2: hx, y2: hy, c: r.c, I: r.I, k: r.k, d0: r.L, d1: r.L + h.s, ev: '' };\n    segs.push(seg);\n    const o = h.o;\n    if (!o) { seg.ev = 'edge'; continue; }\n    if (r.d > 80 || r.I < 0.004) { seg.ev = 'fade'; continue; }\n    if (o.id && o.id !== 'w' && o.id !== 'z') hits[o.id] = (hits[o.id] || 0) + r.I;\n    const next = (ndx, ndy, I, c) => stack.push({ x: hx + ndx * 1e-5, y: hy + ndy * 1e-5, dx: ndx, dy: ndy, I, c: c || r.c, d: r.d + 1, k: r.k, st: r.st, L: r.L + h.s });\n    if (o.act === 'sensor') {\n      const tg = level.targets[o.ti], p = profiles[o.ti];\n      const forward = r.dx * o.nx + r.dy * o.ny;\n      const angle = Math.acos(Math.max(-1, Math.min(1, forward))) * 180 / Math.PI;\n      if (o.color === 'any' || o.color === r.c) {\n        tgt[o.ti] += r.I; seg.ti = o.ti;\n        if (angle <= (tg.tolerance == null ? 89 : tg.tolerance)) {\n          const bin = Math.max(0, Math.min(p.bins.length - 1, Math.floor((h.h + o.half) / (2 * o.half) * p.bins.length)));\n          p.bins[bin] += r.I * LM_PER_BEAM; p.accepted += r.I * LM_PER_BEAM;\n        }\n        p.anglePower += angle * r.I * LM_PER_BEAM;\n      }\n      seg.ev = 'target'; continue;\n    }\n    if (o.kind === 'circ') {\n      const counts = o.ti !== undefined && (o.color === 'any' || o.color === r.c);\n      if (counts) { tgt[o.ti] += r.I; seg.ti = o.ti; }\n      seg.ev = counts ? 'target' : 'wall';\n      continue;\n    }\n    if (o.kind === 'box') { seg.ev = 'wall'; continue; }\n    if (o.kind === 'zone') { next(r.dx, r.dy, r.I); continue; }\n    seg.ev = o.kind === 'seg' ? o.act : '';\n    if (o.kind === 'seg') {\n      const dn = r.dx * o.nx + r.dy * o.ny;\n      if (o.act === 'mirror' || o.act === 'split') {\n        const rx = r.dx - 2 * dn * o.nx, ry = r.dy - 2 * dn * o.ny;\n        if (o.act === 'mirror') next(rx, ry, r.I);\n        else { next(rx, ry, r.I / 2); next(r.dx, r.dy, r.I / 2); }\n      } else if (o.act === 'lens') {\n        const sgn = dn >= 0 ? 1 : -1, ax = o.nx * sgn, ay = o.ny * sgn;\n        const da = r.dx * ax + r.dy * ay; const dt = r.dx * o.tx + r.dy * o.ty;\n        const s = dt / Math.max(da, 0.05) - h.h / o.f;\n        const L = Math.hypot(1, s); next((ax + s * o.tx) / L, (ay + s * o.ty) / L, r.I);\n      } else if (o.act === 'cmirror') {\n        if (dn >= 0) { seg.ev = 'wall'; continue; } // back face absorbs (front faces +n)\n        const rx = r.dx - 2 * dn * o.nx, ry = r.dy - 2 * dn * o.ny;\n        const da = rx * o.nx + ry * o.ny, dt = rx * o.tx + ry * o.ty;\n        const s = dt / Math.max(da, 0.05) - h.h / o.f;\n        const L = Math.hypot(1, s); next((o.nx + s * o.tx) / L, (o.ny + s * o.ty) / L, r.I);\n      }\n      continue;\n    }\n    // refracting bodies: polygons and discs\n    let enx, eny;\n    if (o.kind === 'poly') {\n      const e = h.e;\n      if (e.port && e.joined) { next(r.dx, r.dy, r.I); continue; }   // silent hand-over between fibers\n      enx = e.nx; eny = e.ny;\n    } else {\n      enx = (hx - o.cx) / o.r; eny = (hy - o.cy) / o.r;\n      if (o.mir && enx * o.mir[0] + eny * o.mir[1] > 0) { // silvered back of the cat's eye\n        const dd = r.dx * enx + r.dy * eny; next(r.dx - 2 * dd * enx, r.dy - 2 * dd * eny, r.I); seg.ev = 'retro'; continue;\n      }\n    }\n    const dn = r.dx * enx + r.dy * eny, entering = dn < 0;\n    const nx = entering ? enx : -enx, ny = entering ? eny : -eny; // against d\n    const part = !entering && o.partial ? o.partial : 0;\n    seg.ev = entering ? (o.tab && r.c === 'W' ? 'disperse' : 'glassIn') : 'glassOut';\n    const emit = (c, I) => {\n      const ng = o.tab ? o.tab[c] : o.n;\n      const n1 = entering ? 1 : ng, n2 = entering ? ng : 1;\n      const t = refract(r.dx, r.dy, nx, ny, n1, n2);\n      const dd = r.dx * nx + r.dy * ny, rx = r.dx - 2 * dd * nx, ry = r.dy - 2 * dd * ny;\n      if (!t) { next(rx, ry, I, c); seg.ev = o.fiber ? 'fiberTir' : 'tir'; }\n      else if (part) { next(t[0], t[1], I * (1 - part), c); next(rx, ry, I * part, c); }\n      else next(t[0], t[1], I, c);\n    };\n    if (o.tab && entering && r.c === 'W') { for (const b of BANDS) emit(b, r.I / BANDS.length); }\n    else emit(r.c, r.I);\n  }\n  const lm = tgt.map(v => v * LM_PER_BEAM);\n  const quality = level.targets.map((t, i) => {\n    const p = profiles[i];\n    if (!p) return Math.min(1, lm[i] / t.need);\n    p.covered = p.bins.filter(v => v >= (t.binNeed || 5) - 1e-6).length;\n    p.meanAngle = lm[i] ? p.anglePower / lm[i] : 0;\n    return Math.min(1, p.accepted / t.need, ...p.bins.map(v => v / (t.binNeed || 5)));\n  });\n  const lit = quality.map(q => q >= 1 - 1e-6);\n  return { segs, lm, lit, profiles, quality, hits, win: lit.every(Boolean) && lit.length > 0, all };\n}\n\nif (typeof module !== 'undefined') module.exports = { trace, PIECES, PIECE_ORDER, SPEC, BANDS, buildScene, BEND_R1, BEND_R2 };\n\n// ===== Level solver =====\n// Brute force with iterative deepening, so the first solution found uses the fewest parts. It only tries\n// cells the light currently crosses (a part anywhere else cannot change anything), every allowed angle,\n// and every part left in the inventory. Used by tools/ in Node and by the bench maker's \"check\" in a worker.\nconst SOLVER = (() => {\n  const E = typeof trace !== 'undefined' ? { trace, PIECES } : require('./engine.js');\n  function occupied(level, placed) {\n    const occ = new Set(), add = (x, y) => occ.add(x + ',' + y);\n    (level.walls || []).forEach(([x, y]) => add(x, y));\n    level.sources.forEach(s => add(s.x, s.y));\n    level.targets.forEach(t => add(t.x, t.y));\n    (level.fixed || []).forEach(p => add(p.x, p.y));\n    (level.gates || []).forEach(g => { for (let y = 0; y < level.h; y++) add(g.x, y); });\n    (level.mirage || []).forEach(m => { for (let x = m.x; x < m.x + m.w; x++) for (let y = m.y; y < m.y + m.h; y++) add(x, y); });\n    placed.forEach(p => add(p.x, p.y));\n    return occ;\n  }\n  function candCells(level, res, occ) {\n    const c = new Set();\n    for (const s of res.segs) {\n      const L = Math.hypot(s.x2 - s.x1, s.y2 - s.y1), n = Math.max(1, Math.ceil(L / 0.1));\n      for (let i = 0; i <= n; i++) {\n        const x = Math.floor(s.x1 + (s.x2 - s.x1) * i / n), y = Math.floor(s.y1 + (s.y2 - s.y1) * i / n);\n        if (x < 0 || y < 0 || x >= level.w || y >= level.h) continue;\n        const k = x + ',' + y; if (!occ.has(k)) c.add(k);\n      }\n    }\n    return [...c].map(k => k.split(',').map(Number));\n  }\n  function angles(type) { const sym = E.PIECES[type].sym, out = []; for (let a = 0; a < sym; a += 15) out.push(a); return out; }\n  // budgetMs: give up after this long (returns timedOut: true with whatever depth was finished)\n  function solveID(level, maxDepth = 3, maxSol = 3, budgetMs = Infinity) {\n    const deadline = Date.now() + budgetMs, t0 = Date.now();\n    let nodes = 0, timedOut = false;\n    if (E.trace(level, []).win) return { par: 0, sols: [[]], nodes: 1, ms: 0 };\n    for (let d = 1; d <= maxDepth; d++) {\n      const sols = [], inv = { ...level.inv };\n      for (const k in inv) if (inv[k] === Infinity || inv[k] > d) inv[k] = d;\n      (function dfs(placed, depth) {\n        if (sols.length >= maxSol || timedOut) return;\n        if ((nodes & 255) === 0 && Date.now() > deadline) { timedOut = true; return; }\n        const res = E.trace(level, placed); nodes++;\n        if (res.win) { if (placed.length === d) sols.push(placed.map(p => ({ ...p }))); return; }\n        if (depth >= d) return;\n        const cells = candCells(level, res, occupied(level, placed));\n        for (const type of Object.keys(inv)) {\n          if (!inv[type]) continue; inv[type]--;\n          for (const [x, y] of cells) for (const a of angles(type)) {\n            placed.push({ type, x, y, a }); dfs(placed, depth + 1); placed.pop();\n            if (sols.length >= maxSol || timedOut) break;\n          }\n          inv[type]++;\n          if (sols.length >= maxSol || timedOut) return;\n        }\n      })([], 0);\n      if (sols.length) return { par: d, sols, nodes, ms: Date.now() - t0 };\n      if (timedOut) return { par: null, sols: [], nodes, ms: Date.now() - t0, timedOut: true, depth: d - 1 };\n    }\n    return { par: null, sols: [], nodes, ms: Date.now() - t0 };\n  }\n  return { solveID };\n})();\nif (typeof module !== 'undefined') module.exports = SOLVER;\n\nonmessage = e => postMessage(SOLVER.solveID(e.data.level, e.data.depth, 3, e.data.budget));";
 
 // ===== Sound and music: synthesized with the Web Audio API, no samples =====
 // In play, the light itself is the drum machine: sources fire a pulse on the beat, it travels one cell per
@@ -1079,7 +1149,8 @@ const AU = (() => {
   };
   let c = null, master, bus, noise, hum, musicBus, offline = false, forced = null;
   const tones = {};
-  const A = { on: store.get('sound', true) };
+  const A = { on: store.get('sound', true), mode: store.get('voice', 'glass') === 'rhythm' ? 'rhythm' : 'glass' };
+  A.setMode = mode => { A.mode = mode === 'rhythm' ? 'rhythm' : 'glass'; store.set('voice', A.mode); };
   const now = () => forced ?? c.currentTime;
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -1193,9 +1264,41 @@ const AU = (() => {
     edge(t, v, o) { nz(t, 0.3, 'bandpass', 3200, 1.2, 0.045 * v, o, 650); },                                               // leaves the bench and fades
     fade(t, v, o) { nz(t, 0.25, 'bandpass', 2600, 1.2, 0.03 * v, o, 600); },
   };
+  // Thin glass: a quick strike, gently beating fundamental, and independently decaying inharmonic modes.
+  function glassAt(t, f, v, dest, length = 1.15) {
+    [[1,1,1],[1.003,0.19,0.82],[2.71,0.24,0.38],[4.16,0.11,0.22],[6.31,0.045,0.12]].forEach(([ratio,amp,decayTime]) => {
+      if(f*ratio>15000) return;
+      const osc=c.createOscillator(), gain=c.createGain(); osc.type='sine'; osc.frequency.value=f*ratio;
+      gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(v*amp,t+0.0025);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+length*decayTime);
+      osc.connect(gain);gain.connect(dest);osc.start(t);osc.stop(t+length*decayTime+0.02);
+    });
+  }
+  function gleamAt(t, q, dest) {
+    // A small rise of pitched overtones, not a broadband swoosh.
+    [1,1.5,2].forEach((r,i) => {
+      const o=c.createOscillator(), g=c.createGain(), tt=t+i*0.055;
+      o.frequency.setValueAtTime((1100+q*600)*r,tt);o.frequency.exponentialRampToValueAtTime((1300+q*750)*r,tt+0.19);
+      g.gain.setValueAtTime(0,tt);g.gain.linearRampToValueAtTime(0.014/(i+1),tt+0.055);g.gain.exponentialRampToValueAtTime(0.0001,tt+0.55);
+      o.connect(g);g.connect(dest);o.start(tt);o.stop(tt+0.58);
+    });
+  }
+  A.gleam = q => { if(A.ready() && A.mode==='glass') gleamAt(now(),q,bus); };
+  A.preview = () => { if(A.ready()) { A.hit('lens',0.8,0,now()); if(A.mode==='glass') { gleamAt(now()+0.3,0.8,bus);glassAt(now()+0.95,1760,0.09,bus,1.8); } else A.bell(1174.66,0.09,1.5,0.4); } };
+  const GLASS_PITCH = {mirror:2093,split:1568,lens:1318.51,cmirror:1174.66,glassIn:1760,glassOut:2349.32,tir:2637,fiberTir:3136,disperse:1975.53,retro:1479.98};
   A.hit = function (type, vel, pan, t) {
     if (!A.ready() || !HITS[type]) return;
-    HITS[type](Math.max(t, c.currentTime), Math.min(1, vel), voice(pan));
+    t=Math.max(t,c.currentTime);vel=Math.min(1,vel);
+    if(A.mode==='glass' && !GLASS_PITCH[type] && type!=='emit' && type!=='wall') return;
+    const out=voice(pan);
+    if(A.mode==='rhythm') { HITS[type](t,vel,out);return; }
+    if(GLASS_PITCH[type]) {
+      glassAt(t,GLASS_PITCH[type],vel*(type==='fiberTir'?0.008:0.027),out,type==='fiberTir'?0.24:0.75);
+      if(type==='split') glassAt(t+0.045,2349.32,vel*0.014,out,0.65);
+      if(type==='disperse') gleamAt(t,0.65,out);
+    } else if(type==='emit') tone(t,0.1,'sine',220,0.012*vel,out);
+    else if(type==='wall') nz(t,0.04,'lowpass',750,0.7,0.018*vel,out);
+    // Targets ring on a newly completed objective, not on every passing pulse.
   };
 
   // ---------- music ----------
@@ -1297,20 +1400,21 @@ const AU = (() => {
 
   // the game's events, voiced the original way
   A.ting = (f) => A.bell(f, 0.05, 1.4);
-  A.place = (f) => { A.bell(f * 2, 0.07, 0.5); A.tick(); };
+  A.place = (f) => { if(A.mode==='glass') { if(A.ready()) glassAt(now(),f,0.065,bus,0.9); } else { A.bell(f * 2, 0.07, 0.5); A.tick(); } };
   A.ratchet = () => A.tick();
   A.select = () => A.tick();
   A.key = () => {};
   A.release = () => A.whoosh(true, 0.06);
   A.stow = () => A.whoosh(false, 0.08);
-  A.charge = (id, f) => { A.bell(f, 0.2, 2.6); A.toneOn(id, f / 2); };
+  A.charge = (id, f) => { if(A.mode==='glass') { if(A.ready()) { gleamAt(now(),1,bus);glassAt(now()+0.06,f,0.095,bus,1.9); } } else A.bell(f, 0.2, 2.6); A.toneOn(id, f / 2); };
   A.discharge = (id) => A.toneOff(id);
   A.hint = () => A.bell(1760, 0.06, 1);
   A.nudge = () => A.bell(1760, 0.03, 1);
-  A.setLight = (light, busy, quiet) => A.setHum(quiet ? 0.0 : 0.05 + 0.05 * busy);
+  A.setLight = (light, busy, quiet) => A.setHum(quiet ? 0.0 : A.mode==='glass' ? 0.012 + 0.018 * light : 0.05 + 0.05 * busy);
   // every cell lit: a short phrase in the title theme's own voices, on its 112 BPM grid, kept gentle
   A.win = () => {
     if (!A.ready()) return;
+    if(A.mode==='glass') { glassAt(now()+0.02,1174.66,0.055,bus,1.7);glassAt(now()+0.16,1760,0.045,bus,2.0);return; }
     const t = now() + 0.04, sp = 60 / 112 / 4, out = c.createGain(); out.gain.value = 0.75; out.connect(bus);
     [[0, 74], [2, 78], [4, 81], [6, 86], [10, 85], [12, 81]].forEach(([s, m], i) => pluck(t + s * sp, mtof(m), i === 3 ? 0.05 : 0.04, out, 0.5));
     CH.Dmaj9.forEach(m => padNote(t, mtof(m + 12), sp * 14, 0.012, out));
@@ -1353,7 +1457,6 @@ const AU = (() => {
   };
   return A;
 })();
-
 
 
 // Appearance affects presentation only; optical beam colours always stay unchanged.
@@ -1823,8 +1926,10 @@ const TNOTE = [1174.66, 1479.98, 1760, 2349.32];
 const CHAPTERS = {
   1: { numeral: 'I', name: 'The Bench' },
   2: { numeral: 'II', name: 'Exotic Optics' },
-  3: { numeral: 'III', name: 'Masterworks' },
+  3: { numeral: 'III', name: 'Shape the Light' },
+  4: { numeral: 'IV', name: 'Masterworks' },
 };
+const CH3 = LEVELS.findIndex(l => l.chapter === 3);
 const IDLE_MS = 15000;   // how long without a move before the hint key glows
 
 // ---------- the light sequencer ----------
@@ -1917,6 +2022,7 @@ function occupiedBy(x, y, ignoreUid) {
   if (L.sources.some(s => s.x === x && s.y === y)) return 'source';
   if (L.targets.some(t => t.x === x && t.y === y)) return 'target';
   if ((L.fixed || []).some(p => p.x === x && p.y === y)) return 'fixed';
+  if ((L.gates || []).some(g => g.x === x)) return 'aperture';
   if ((L.mirage || []).some(m => x >= m.x && x < m.x + m.w && y >= m.y && y < m.y + m.h)) return 'zone';
   if (S.placed.some(p => p.x === x && p.y === y && p.uid !== ignoreUid)) return 'piece';
   return null;
@@ -1932,7 +2038,8 @@ function loadLevel(i, keep, custom) {
   S.inv = { ...S.level.inv };
   for (const p of S.placed) if (S.inv[p.type] !== Infinity) S.inv[p.type]--;
   S.sel = null; S.armed = null; S.drag = null; S.hint = 0; S.winAt = 0; S.winShown = false;
-  S.litT = []; S.litP = {}; S.dirty = true;
+  S.litT = []; S.litP = {}; S.dirty = true; S.lastQuality = 0; S.gleamAt = -Infinity;
+  $('#objective').hidden = !S.level.shaping;
   if (i >= 0) store.set('last', i);
   S.lastAct = performance.now();
   layout(); buildParts(); updateHeader(); updateStatus();
@@ -1946,7 +2053,6 @@ function updateHeader() {
   $('#hintTxt').textContent = S.hint ? `hint ${S.hint}/${L.sol.length}` : 'hint';
   $('#soundBtn').setAttribute('aria-pressed', AU.on ? 'true' : 'false');
 }
-
 
 
 // ===== Game input: selection, pointer, drag, place/rotate/return, retrace, win =====
@@ -2150,13 +2256,28 @@ function retrace() {
   const L = S.level;
   res.lit.forEach((on, i) => {
     const tg = L.targets[i], pan = panOf(tg.x + 0.5, tg.y + 0.5);
-    if (on && !S.litT[i]) { AU.charge('t' + i, TNOTE[i % 4], pan); (S.litAt = S.litAt || [])[i] = now; }
+    if (on && !S.litT[i] && !S.drag && !S.rot) { AU.charge('t' + i, TNOTE[i % 4], pan); (S.litAt = S.litAt || [])[i] = now; }
     if (!on && S.litT[i]) AU.discharge('t' + i);
   });
-  S.litT = res.lit.slice();
-  const share = L.targets.length ? L.targets.reduce((a, t, i) => a + Math.min(1, res.lm[i] / t.need), 0) / L.targets.length : 0;
+  if (!S.drag && !S.rot) S.litT = res.lit.slice();
+  const share = L.targets.length ? res.quality.reduce((a, q) => a + q, 0) / L.targets.length : 0;
+  if (L.shaping && !S.drag && !S.rot) {
+    if (share > S.lastQuality + 0.05 && share < 0.999 && now - S.gleamAt > 450) { AU.gleam(share); S.gleamAt = now; }
+    S.lastQuality = share;
+  }
   AU.setLight(share, Math.min(1, res.segs.length / 25), false);
+  updateObjective(res);
   updateHeader();
+}
+function updateObjective(res) {
+  const el = $('#objective'); el.hidden = !S.level.shaping || S.screen !== 'play';
+  if (el.hidden) return;
+  el.textContent = S.level.targets.map((tg, i) => {
+    const p = res.profiles[i], done = res.lit[i] ? ' ✓' : '';
+    if (p) return `${p.covered}/${p.bins.length} strips lit · ${Math.round(p.accepted)}/${tg.need} lm${tg.tolerance ? ' straight (±' + tg.tolerance + '°)' : ''}${done}`;
+    return `${S.level.targets.length > 1 ? 'Iris ' + (i+1) + ': ' : 'Focus: '}${Math.round(res.lm[i])}/${tg.need} lm${done}`;
+  }).join('  /  ');
+  el.classList.toggle('complete', res.win);
 }
 function checkWin(now) {
   if (S.screen !== 'play' || S.li === -1) return;
@@ -2196,8 +2317,6 @@ $('#winStay').onclick = () => { $('#win').hidden = true; };
 $('#winNext').onclick = () => { $('#win').hidden = true; if (S.li === -2) backToMaker(); else if (S.li === -4) { if (S.ci + 1 < COMMUNITY.length) playCommunity(S.ci + 1); else showLevels(); } else if (S.li === LEVELS.length - 1) loadLevel(-1); else loadLevel(S.li + 1); };
 
 
-
-
 // ===== Game drawing: bench, beams, pieces, sources, cells, labels =====
 // (same IIFE scope as game.js; see tools/build.js for order)
 // ---------- drawing: shared helpers ----------
@@ -2235,6 +2354,15 @@ function drawStatics() {
     for (let k = 0.2; k < 0.9; k += 0.12) { g.moveTo(x + 0.14, y + k + 0.06); g.lineTo(x + 0.86, y + k + 0.06); }
     g.stroke();
     g.fillStyle = '#07080a'; for (const [ax, ay] of [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) { g.beginPath(); g.arc(x + ax, y + ay, 0.035, 0, 7); g.fill(); }
+  }
+  for (const q of L.gates || []) {
+    g.fillStyle = '#12171d'; g.strokeStyle = '#71808b'; g.lineWidth = 0.018;
+    for (const [y,h] of [[0,q.y+0.5-q.gap],[q.y+0.5+q.gap,L.h-q.y-0.5-q.gap]]) {
+      g.fillRect(q.x+0.46,y,0.08,h); g.strokeRect(q.x+0.46,y,0.08,h);
+    }
+    g.fillStyle = '#ffcf7f';
+    g.fillRect(q.x+0.37,q.y+0.5-q.gap-0.025,0.26,0.025);
+    g.fillRect(q.x+0.37,q.y+0.5+q.gap,0.26,0.025);
   }
   // engraved scale along two edges, like a real breadboard
   if (S.screen === 'play' && V.cell >= 40) {
@@ -2622,7 +2750,23 @@ function cellBody(g, cx, cy, tg, lw) {
   if (col) { g.fillStyle = rgba(col, 0.24); g.beginPath(); g.arc(cx, cy, face, 0, 7); g.fill(); g.strokeStyle = rgba(col, 0.7); g.lineWidth = lw * 1.5; g.stroke(); }
   g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = Math.max(lw, 0.012); g.beginPath(); g.arc(cx, cy, face * 0.82, Math.PI * 1.08, Math.PI * 1.42); g.stroke();
 }
+function drawProfileTarget(tg, i) {
+  const p = S.res && S.res.profiles[i], n = tg.bins || 5, half = tg.half || 0.4;
+  ctx.save(); ctx.translate(tg.x+0.5, tg.y+0.5); ctx.rotate((tg.a || 0)*RAD);
+  ctx.fillStyle = '#12171d'; ctx.strokeStyle = '#8997a2'; ctx.lineWidth = 0.02;
+  rr(ctx,-0.10,-half-0.09,0.25,half*2+0.18,0.05); ctx.fill(); ctx.stroke();
+  for (let k=0;k<n;k++) {
+    const v = p ? p.bins[k] : 0, on = v >= (tg.binNeed || 5)-1e-6;
+    ctx.fillStyle = on ? '#ffdc95' : v ? '#85612d' : '#29343e';
+    ctx.fillRect(-0.07,-half+k*2*half/n+0.012,0.17,2*half/n-0.024);
+    if(on) { ctx.shadowBlur=9;ctx.shadowColor='#ffd88b';ctx.fillRect(-0.07,-half+k*2*half/n+0.012,0.05,2*half/n-0.024);ctx.shadowBlur=0; }
+  }
+  // Arrow points in the accepted arrival direction.
+  ctx.strokeStyle='#d6e1e8';ctx.lineWidth=0.018;ctx.beginPath();ctx.moveTo(-0.35,-half-0.2);ctx.lineTo(0.08,-half-0.2);ctx.lineTo(-0.02,-half-0.26);ctx.moveTo(0.08,-half-0.2);ctx.lineTo(-0.02,-half-0.14);ctx.stroke();
+  ctx.restore();
+}
 function drawTarget(tg, i, t) {
+  if (tg.profile) { drawProfileTarget(tg, i); return; }
   const res = S.res, lm = res ? res.lm[i] : 0, on = res ? res.lit[i] : false;
   const cx = tg.x + 0.5 + (tg.ox || 0), cy = tg.y + 0.5 + (tg.oy || 0), { r, ring, R, pin } = cellGeom(tg);
   const col = tg.color && tg.color !== 'any' ? SPEC[tg.color].rgb : SPEC.W.rgb;
@@ -2681,9 +2825,9 @@ function drawLabels() {
   L.sources.forEach(s => labelAt(s.x + 0.5, s.y + 0.5, [[s.color && s.color !== 'W' ? `Laser · ${SPEC[s.color].nm} nm` : 'White source']], s.a % 180 ? 0.46 : 0.44));
   L.targets.forEach((tg, i) => {
     const lm = res ? res.lm[i] : 0, on = res && res.lit[i];
-    const nm = tg.color && tg.color !== 'any' ? `${SPEC[tg.color].nm} nm cell` : (tg.r && tg.r <= 0.12 ? 'Pinhole cell' : 'Photocell');
+    const nm = tg.profile ? (tg.tolerance ? 'Parallel receiver' : 'Strip receiver') : tg.color && tg.color !== 'any' ? `${SPEC[tg.color].nm} nm cell` : (tg.r && tg.r <= 0.12 ? 'Pinhole cell' : 'Photocell');
     const fmt = v => tg.need < 10 ? v.toFixed(1) : Math.round(v);
-    labelAt(tg.x + 0.5 + (tg.ox || 0), tg.y + 0.5 + (tg.oy || 0), [[nm], [`${fmt(lm)} / ${fmt(tg.need)} lm`, true, on ? '#ffc366' : 'rgba(216,221,227,0.92)']], cellGeom(tg).R + 0.03);
+    labelAt(tg.x + 0.5 + (tg.ox || 0), tg.y + 0.5 + (tg.oy || 0), [[nm], [`${fmt(lm)} / ${fmt(tg.need)} lm`, true, on ? '#ffc366' : 'rgba(216,221,227,0.92)']], (tg.profile ? tg.half + 0.12 : cellGeom(tg).R + 0.03));
   });
   for (const p of (L.fixed || [])) if (p.type !== 'fiber' && p.type !== 'bend') labelAt(p.x + 0.5, p.y + 0.5, [[PIECES[p.type].name]], 0.42);
   for (const m of (L.mirage || [])) labelAt(m.x + m.w / 2, m.y + m.h - 0.62, [['Hot plate · mirage']], 0);
@@ -2754,7 +2898,6 @@ function draw(t) {
 }
 
 
-
 // ===== Game UI: frame loop, modals, menus, level picker, start =====
 // (same IIFE scope as game.js; see tools/build.js for order)
 let lastT = performance.now();
@@ -2814,6 +2957,7 @@ function openPause() {
     m.append(key('choose bench', showLevels), key('bench maker', () => openMaker(null)), key('main menu', toTitle));
   }
   m.append(key('skins & readability', () => SKIN.open()));
+  m.append(key('sound: ' + AU.mode + ' · switch', changeVoice));
   closeModals(); $('#pause').hidden = false; focusFirst('#pauseMenu');
 }
 // Esc closes whatever menu is open, innermost first
@@ -2841,7 +2985,7 @@ $('#levelGrid').addEventListener('keydown', e => {
 
 // ---------- screens ----------
 function firstOpen() { for (let i = 0; i < LEVELS.length; i++) if (!progress[i]) return i; return LEVELS.length - 1; }
-function unlocked(i) { return i === 0 || !!LEVELS[i].chapter || progress[i - 1] || progress[i]; }
+function unlocked(i) { return i === 0 || (!!LEVELS[i].chapter || LEVELS[i].shaping) || progress[i - 1] || progress[i]; }
 function showLevels() {
   const g = $('#levelGrid'); g.innerHTML = '';
   $('#levelCount').textContent = `optics lab · ${LEVELS.length} benches`;
@@ -2874,9 +3018,14 @@ function startPlay(i, keep, custom) {
   AU.music(null);
   loadLevel(i, keep, custom);
 }
-$('#startBtn').onclick = () => startPlay(store.get('last', null) ?? firstOpen());
+$('#startBtn').onclick = () => { const last = store.get('last', 0); const next = LEVELS.slice(0, CH3).findIndex((_, i) => !progress[i]); startPlay(last >= 0 && last < CH3 ? last : Math.max(0, next)); };
 $('#titleLevels').onclick = () => { AU.init(); showLevels(); };
 $('#titleFree').onclick = () => startPlay(-1);
+$('#titleShape').onclick = () => startPlay(CH3);
+$('#titleMasterworks').onclick = () => startPlay(LEVELS.findIndex(l => l.chapter === 4));
+function changeVoice() { AU.init(); AU.setMode(AU.mode === 'glass' ? 'rhythm' : 'glass'); $('#voiceBtn').textContent = 'sound: ' + AU.mode; AU.preview(); }
+$('#voiceBtn').onclick = changeVoice;
+$('#voiceBtn').textContent = 'sound: ' + AU.mode;
 $('#menuBtn').onclick = () => openPause();
 $('#titleMaker').onclick = () => { AU.init(); openMaker(null); };
 $('#levelsClose').onclick = closeLevels;
@@ -2899,7 +3048,7 @@ $('#gateBtn').onclick = () => { AU.init(); startIdent(); };
   if (S.screen === 'ident' && performance.now() - S.identT0 > 400) { e.stopPropagation(); toTitle(); }   // skip the ident
 }, true));
 // hooks for tools/trailer.js, which drives the game frame by frame to film the trailer
-window.__bw = { S, LEVELS, SANDBOX, SEQ, startPlay, loadLevel, placePiece, rotatePiece, startIdent, toTitle, showLevels, layout, restartLoop };
+window.__bw = { S, V, AU, trace, w2s, occupiedBy, LEVELS, SANDBOX, SEQ, startPlay, loadLevel, placePiece, rotatePiece, startIdent, toTitle, showLevels, layout, restartLoop };
 function start(data) {
   data = data || window.claude?.hot?.data || {};
   if (!GLR.init($('#gl'))) document.documentElement.classList.add('no-gl');
@@ -2910,7 +3059,6 @@ function start(data) {
   else if (data.screen === 'title') toTitle();
   requestAnimationFrame(frame);
 }
-
 
 
 // ===== Bench maker =====

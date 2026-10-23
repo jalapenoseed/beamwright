@@ -199,13 +199,28 @@ function retrace() {
   const L = S.level;
   res.lit.forEach((on, i) => {
     const tg = L.targets[i], pan = panOf(tg.x + 0.5, tg.y + 0.5);
-    if (on && !S.litT[i]) { AU.charge('t' + i, TNOTE[i % 4], pan); (S.litAt = S.litAt || [])[i] = now; }
+    if (on && !S.litT[i] && !S.drag && !S.rot) { AU.charge('t' + i, TNOTE[i % 4], pan); (S.litAt = S.litAt || [])[i] = now; }
     if (!on && S.litT[i]) AU.discharge('t' + i);
   });
-  S.litT = res.lit.slice();
-  const share = L.targets.length ? L.targets.reduce((a, t, i) => a + Math.min(1, res.lm[i] / t.need), 0) / L.targets.length : 0;
+  if (!S.drag && !S.rot) S.litT = res.lit.slice();
+  const share = L.targets.length ? res.quality.reduce((a, q) => a + q, 0) / L.targets.length : 0;
+  if (L.shaping && !S.drag && !S.rot) {
+    if (share > S.lastQuality + 0.05 && share < 0.999 && now - S.gleamAt > 450) { AU.gleam(share); S.gleamAt = now; }
+    S.lastQuality = share;
+  }
   AU.setLight(share, Math.min(1, res.segs.length / 25), false);
+  updateObjective(res);
   updateHeader();
+}
+function updateObjective(res) {
+  const el = $('#objective'); el.hidden = !S.level.shaping || S.screen !== 'play';
+  if (el.hidden) return;
+  el.textContent = S.level.targets.map((tg, i) => {
+    const p = res.profiles[i], done = res.lit[i] ? ' ✓' : '';
+    if (p) return `${p.covered}/${p.bins.length} strips lit · ${Math.round(p.accepted)}/${tg.need} lm${tg.tolerance ? ' straight (±' + tg.tolerance + '°)' : ''}${done}`;
+    return `${S.level.targets.length > 1 ? 'Iris ' + (i+1) + ': ' : 'Focus: '}${Math.round(res.lm[i])}/${tg.need} lm${done}`;
+  }).join('  /  ');
+  el.classList.toggle('complete', res.win);
 }
 function checkWin(now) {
   if (S.screen !== 'play' || S.li === -1) return;
@@ -243,5 +258,3 @@ function showWin() {
 }
 $('#winStay').onclick = () => { $('#win').hidden = true; };
 $('#winNext').onclick = () => { $('#win').hidden = true; if (S.li === -2) backToMaker(); else if (S.li === -4) { if (S.ci + 1 < COMMUNITY.length) playCommunity(S.ci + 1); else showLevels(); } else if (S.li === LEVELS.length - 1) loadLevel(-1); else loadLevel(S.li + 1); };
-
-

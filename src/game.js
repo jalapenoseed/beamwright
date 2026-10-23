@@ -43,8 +43,10 @@ const TNOTE = [1174.66, 1479.98, 1760, 2349.32];
 const CHAPTERS = {
   1: { numeral: 'I', name: 'The Bench' },
   2: { numeral: 'II', name: 'Exotic Optics' },
-  3: { numeral: 'III', name: 'Masterworks' },
+  3: { numeral: 'III', name: 'Shape the Light' },
+  4: { numeral: 'IV', name: 'Masterworks' },
 };
+const CH3 = LEVELS.findIndex(l => l.chapter === 3);
 const IDLE_MS = 15000;   // how long without a move before the hint key glows
 
 // ---------- the light sequencer ----------
@@ -137,6 +139,7 @@ function occupiedBy(x, y, ignoreUid) {
   if (L.sources.some(s => s.x === x && s.y === y)) return 'source';
   if (L.targets.some(t => t.x === x && t.y === y)) return 'target';
   if ((L.fixed || []).some(p => p.x === x && p.y === y)) return 'fixed';
+  if ((L.gates || []).some(g => g.x === x)) return 'aperture';
   if ((L.mirage || []).some(m => x >= m.x && x < m.x + m.w && y >= m.y && y < m.y + m.h)) return 'zone';
   if (S.placed.some(p => p.x === x && p.y === y && p.uid !== ignoreUid)) return 'piece';
   return null;
@@ -152,7 +155,8 @@ function loadLevel(i, keep, custom) {
   S.inv = { ...S.level.inv };
   for (const p of S.placed) if (S.inv[p.type] !== Infinity) S.inv[p.type]--;
   S.sel = null; S.armed = null; S.drag = null; S.hint = 0; S.winAt = 0; S.winShown = false;
-  S.litT = []; S.litP = {}; S.dirty = true;
+  S.litT = []; S.litP = {}; S.dirty = true; S.lastQuality = 0; S.gleamAt = -Infinity;
+  $('#objective').hidden = !S.level.shaping;
   if (i >= 0) store.set('last', i);
   S.lastAct = performance.now();
   layout(); buildParts(); updateHeader(); updateStatus();
@@ -166,4 +170,3 @@ function updateHeader() {
   $('#hintTxt').textContent = S.hint ? `hint ${S.hint}/${L.sol.length}` : 'hint';
   $('#soundBtn').setAttribute('aria-pressed', AU.on ? 'true' : 'false');
 }
-
