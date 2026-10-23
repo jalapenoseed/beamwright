@@ -28,7 +28,7 @@ const fs = require('fs');
  if(await page.locator('#skinov').isVisible())throw Error('Escape does not close');
  await page.reload();
  if(await page.locator('html').getAttribute('data-skin')!=='steel')throw Error('persistence');
- await page.setViewportSize({width:1280,height:720});
+ // Keep software WebGL at the phone viewport used above; desktop layout is checked in 2D.
  await page.evaluate(()=>__bw.startPlay(__bw.LEVELS.length-1, __bw.LEVELS.at(-1).sol));
  await page.waitForFunction(()=>__bw.S.res?.win);
  if(!await page.evaluate(()=>GLR.ok))throw Error('Masterworks WebGL unavailable');
