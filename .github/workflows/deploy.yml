@@ -30,7 +30,7 @@ jobs:
       - name: Check skins and phone layout in Chromium
         run: |
           npm install --no-save --package-lock=false playwright@1.62.1
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
           node tools/check-appearance.js
           node tools/check-touch.js
           node tools/check-masterworks.js
