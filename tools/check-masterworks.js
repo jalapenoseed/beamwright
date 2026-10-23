@@ -14,6 +14,11 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
       page.setDefaultTimeout(10000);
       page.setDefaultNavigationTimeout(20000);
       console.log('Masterworks viewport', viewport);
+      // Navigation is checked in the supported 2D renderer; check-appearance separately checks the new finale with WebGL.
+      await page.addInitScript(() => {
+        const get = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function(type, ...args) { return type === 'webgl2' ? null : get.call(this, type, ...args); };
+      });
       const errors = [];
       page.on('pageerror', e => { errors.push(e.message); console.error('Page error:', e.message); });
       await page.goto(pathToFileURL(path.join(__dirname, '../dist/index.html')).href);
@@ -32,6 +37,7 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
       console.log('Opening Switchback from picker');
       await first.click();
       assert.equal(await page.locator('#lvlName').textContent(), 'Switchback');
+      console.log('Hint control', await page.locator('#hintBtn').evaluate(e => ({hidden:e.hidden,display:getComputedStyle(e).display,rect:e.getBoundingClientRect().toJSON(),body:document.body.className})));
       await page.locator('#hintBtn').click();
       assert.ok((await page.locator('#status').textContent()).includes('Hint:'));
       for (let i = 26; i < 36; i++) {

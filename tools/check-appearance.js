@@ -28,6 +28,11 @@ const fs = require('fs');
  if(await page.locator('#skinov').isVisible())throw Error('Escape does not close');
  await page.reload();
  if(await page.locator('html').getAttribute('data-skin')!=='steel')throw Error('persistence');
+ await page.setViewportSize({width:1280,height:720});
+ await page.evaluate(()=>__bw.startPlay(__bw.LEVELS.length-1, __bw.LEVELS.at(-1).sol));
+ await page.waitForFunction(()=>__bw.S.res?.win);
+ if(!await page.evaluate(()=>GLR.ok))throw Error('Masterworks WebGL unavailable');
+ await page.screenshot({path:'appearance-checks/masterworks-webgl.png'});
  await page.close();
  if (!result.gl || result.overflow || result.glow !== 0.1 || result.skinSaved.glow !== 0.1) throw Error('Appearance or phone layout check failed: '+JSON.stringify(result));
  console.log(JSON.stringify({result,errors}));
@@ -42,3 +47,4 @@ const fs = require('fs');
  await fallback.screenshot({path:'appearance-checks/beamwright-steel-desktop.png'});
  await browser.close();if(errors.length)process.exitCode=1;
 })().catch(e=>{console.error(e);process.exit(1)});
+
