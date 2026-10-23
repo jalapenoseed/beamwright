@@ -9,7 +9,7 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
   const browser = await chromium.launch({headless:true,args:['--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
   try {
     fs.mkdirSync('appearance-checks', { recursive: true });
-    for (const viewport of [{width:1280,height:720},{width:390,height:760}]) {
+    for (const viewport of [{width:960,height:600},{width:390,height:760}]) {
       const page = await browser.newPage({viewport});
       page.setDefaultTimeout(10000);
       page.setDefaultNavigationTimeout(20000);
@@ -24,6 +24,15 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
       await page.goto(pathToFileURL(path.join(__dirname, '../dist/index.html')).href);
       await page.waitForFunction(() => window.__bw);
       console.log('Page ready');
+      await page.evaluate(() => __bw.toTitle());
+      assert.ok(await page.locator('#title .title-wrap').evaluate(e => {
+        const width = innerWidth;
+        return [e, ...e.querySelectorAll('button')].every(el => {
+          const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= width;
+        });
+      }), 'title controls fit the itch embed and phone');
+      await page.locator('#titleMasterworks').click();
+      assert.equal(await page.locator('#lvlName').textContent(), 'Switchback');
       await page.evaluate(() => __bw.toTitle());
       console.log('Opening Shape the Light');
       await page.locator('#titleShape').click();
