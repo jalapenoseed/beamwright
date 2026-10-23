@@ -11,11 +11,16 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
     fs.mkdirSync('appearance-checks', { recursive: true });
     for (const viewport of [{width:1280,height:720},{width:390,height:760}]) {
       const page = await browser.newPage({viewport});
+      page.setDefaultTimeout(10000);
+      page.setDefaultNavigationTimeout(20000);
+      console.log('Masterworks viewport', viewport);
       const errors = [];
-      page.on('pageerror', e => errors.push(e.message));
+      page.on('pageerror', e => { errors.push(e.message); console.error('Page error:', e.message); });
       await page.goto(pathToFileURL(path.join(__dirname, '../dist/index.html')).href);
       await page.waitForFunction(() => window.__bw);
+      console.log('Page ready');
       await page.evaluate(() => __bw.toTitle());
+      console.log('Opening Shape the Light');
       await page.locator('#titleShape').click();
       assert.equal(await page.locator('#lvlName').textContent(), 'Needle of Light');
       await page.evaluate(() => { __bw.toTitle(); __bw.showLevels(); });
@@ -24,13 +29,19 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
       const first = page.getByRole('button', {name:'Bench 27, Switchback',exact:true});
       assert.ok(await first.isEnabled(), 'chapter IV must be available with no previous progress');
       assert.ok(await page.getByRole('button',{name:'Bench 28, The Inner Vault, locked',exact:true}).isDisabled());
+      console.log('Opening Switchback from picker');
       await first.click();
       assert.equal(await page.locator('#lvlName').textContent(), 'Switchback');
       await page.locator('#hintBtn').click();
       assert.ok((await page.locator('#status').textContent()).includes('Hint:'));
       for (let i = 26; i < 36; i++) {
+        console.log('Solving bench', i + 1);
         await page.evaluate(i => __bw.startPlay(i, __bw.LEVELS[i].sol), i);
-        await page.waitForFunction(() => __bw.S.res?.win && !document.querySelector('#win').hidden);
+        try { await page.waitForFunction(() => __bw.S.res?.win && !document.querySelector('#win').hidden); }
+        catch (e) {
+          console.error('Win state', await page.evaluate(() => ({name:__bw.S.level.name,win:__bw.S.res?.win,placed:__bw.S.placed,press:__bw.S.press,winAt:__bw.S.winAt,winShown:__bw.S.winShown,screen:__bw.S.screen})));
+          await page.screenshot({path:'appearance-checks/masterworks-failure.png'}); throw e;
+        }
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
         if (i === 35) {
           assert.equal(await page.locator('#winTitle').textContent(), 'Masterworks complete');
@@ -46,6 +57,7 @@ setTimeout(() => { console.error('Masterworks UI check timed out'); process.exit
       assert.equal(await page.locator('#lvlName').textContent(), 'Switchback');
       await page.reload();
       await page.waitForFunction(() => window.__bw);
+      console.log('Page ready');
       await page.evaluate(() => { __bw.toTitle(); __bw.showLevels(); });
       assert.ok(await page.getByRole('button',{name:'Bench 36, Grandmaster, 3 of 3',exact:true}).isEnabled());
       assert.deepEqual(errors, []);
