@@ -1,6 +1,6 @@
 {
   "name": "beamwright",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "An optics bench puzzle game. Bounce, bend, split and focus light into every photocell.",
   "private": false,
   "homepage": "https://jalapenoseed.github.io/beamwright",
@@ -10,7 +10,7 @@
     "build": "node tools/build.js",
     "verify": "node tools/verify.js && node tools/community.js verify",
     "solve": "node tools/solve.js",
-    "test": "npm run verify && node --test 'tools/**/*.test.js' && node tools/build.js",
+    "test": "npm run verify && node --test && node tools/build.js",
     "itch": "node tools/build.js && node tools/itch.js",
     "community:check": "node tools/community.js check",
     "community:add": "node tools/community.js add",
@@ -21,3 +21,4 @@
   },
   "repository": "github:jalapenoseed/beamwright"
 }
+

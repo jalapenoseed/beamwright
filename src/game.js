@@ -40,7 +40,11 @@ const DEFAULT_A = { mirror: 135, splitter: 135, convex: 90, concave: 90, cmirror
 const NOTE = { mirror: 880, cmirror: 739.99, xmirror: 659.26, convex: 1174.66, concave: 987.77, block: 587.33, prism: 1318.51, splitter: 1479.98, dblock: 493.88, cateye: 1975.53, droplet: 2349.32, diamond: 2959.96, fiber: 440, bend: 554.37 };
 const SPARKLY = { prism: 1, droplet: 1, diamond: 1 };
 const TNOTE = [1174.66, 1479.98, 1760, 2349.32];
-const CH2 = LEVELS.findIndex(l => l.chapter === 2);
+const CHAPTERS = {
+  1: { numeral: 'I', name: 'The Bench' },
+  2: { numeral: 'II', name: 'Exotic Optics' },
+  3: { numeral: 'III', name: 'Masterworks' },
+};
 const IDLE_MS = 15000;   // how long without a move before the hint key glows
 
 // ---------- the light sequencer ----------
@@ -162,3 +166,4 @@ function updateHeader() {
   $('#hintTxt').textContent = S.hint ? `hint ${S.hint}/${L.sol.length}` : 'hint';
   $('#soundBtn').setAttribute('aria-pressed', AU.on ? 'true' : 'false');
 }
+

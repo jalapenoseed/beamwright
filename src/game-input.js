@@ -229,17 +229,19 @@ function showWin() {
   if (S.li === -4) { communityWin(n); return; }
   const st = starsFor(n, L.par);
   const prev = progress[S.li] || 0; if (st > prev) { progress[S.li] = st; store.set('progress', progress); }
-  const last = S.li === LEVELS.length - 1, chapEnd = S.li === CH2 - 1;
+  const last = S.li === LEVELS.length - 1;
+  const nextChapter = LEVELS[S.li + 1]?.chapter;
   $('#winEyebrow').textContent = `bench ${String(S.li + 1).padStart(2, '0')} · all cells lit`;
-  $('#winTitle').textContent = last ? 'Every bench is lit' : chapEnd ? 'Chapter I complete' : ['Circuit complete', 'Light delivered', 'Photocells humming', 'Clean optics'][S.li % 4];
+  $('#winTitle').textContent = last ? 'Masterworks complete' : nextChapter ? `Chapter ${CHAPTERS[nextChapter - 1].numeral} complete` : ['Circuit complete', 'Light delivered', 'Photocells humming', 'Clean optics'][S.li % 4];
   $('#winStars').innerHTML = [0, 1, 2].map(i => `<i data-plate="led"${i < st ? ' class="on"' : ''}></i>`).join('');
   $('#winStars').setAttribute('aria-label', `${st} of 3`);
   $('#wPieces').textContent = n; $('#wPar').textContent = L.par;
   $('#wLm').textContent = Math.round(S.res.lm.reduce((a, b) => a + b, 0)) + ' lm';
-  $('#winNext').textContent = last ? 'free bench →' : chapEnd ? 'start chapter II →' : 'next bench →';
+  $('#winNext').textContent = last ? 'free bench →' : nextChapter ? `start chapter ${CHAPTERS[nextChapter].numeral} →` : 'next bench →';
   $('#win').hidden = false; focusFirst('#win');
   AU.win();
 }
 $('#winStay').onclick = () => { $('#win').hidden = true; };
 $('#winNext').onclick = () => { $('#win').hidden = true; if (S.li === -2) backToMaker(); else if (S.li === -4) { if (S.ci + 1 < COMMUNITY.length) playCommunity(S.ci + 1); else showLevels(); } else if (S.li === LEVELS.length - 1) loadLevel(-1); else loadLevel(S.li + 1); };
+
 

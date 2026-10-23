@@ -17,7 +17,7 @@ Beamwright is plain HTML, CSS and JavaScript with no framework and no runtime de
 Order matters — everything loads as globals. From `tools/build.js`:
 
 1. `src/engine.js` — optics: `PIECES`, `buildScene`, `trace(level, placed)`
-2. `src/levels.js` — the 22 campaign benches
+2. `src/levels.js` — the 32 campaign benches
 3. `SOLS` — par + hint solutions (generated, `data/solutions.json`)
 4. `src/solver.js` — `SOLVER.solveID`, iterative deepening (browser + Node)
 5. `src/codes.js` — `BENCH.encode/decode`, `BW1-…` share codes, strictly validated
@@ -57,3 +57,4 @@ Then one IIFE wraps, in order:
 - **Light:** each source fires 5 parallel rays; `trace()` returns `{segs, lm, lit, hits, win}`. Segments carry `d0`/`d1` (distance in cells) and `ev` (what the ray met).
 - **Community benches:** submitted via a GitHub issue form → `bench-submission.yml` validates with the solver → maintainer adds the `accepted` label → workflow commits to `community/benches/` → redeploy. See `community/README.md`.
 - **Deploy:** `.github/workflows/deploy.yml` runs `verify` + `build` on pushes to `main`, then deploys `dist/` to GitHub Pages (and itch.io via butler, once configured).
+

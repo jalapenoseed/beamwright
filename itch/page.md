@@ -32,7 +32,7 @@ Everything to paste into the itch.io "Create new project" form. Images are in th
 >
 > **The light is the drum machine.** Each source fires a pulse on the downbeat. Every mirror, lens and photocell it meets becomes a drum hit, so the shape of your light path *is* the beat.
 >
-> - 22 benches across two chapters: **The Bench** and **Exotic Optics**. Exotic Optics has total internal reflection, cat's eyes, fiber optics, raindrops, diamonds and a hot-air mirage.
+> - 32 benches across three chapters: **The Bench**, **Exotic Optics**, and **Masterworks**. Masterworks adds ten larger, harder maps with maze routing, power budgets, crossed colours, fiber networks and spectral locks. Exotic Optics has total internal reflection, cat's eyes, fiber optics, raindrops, diamonds and a hot-air mirage.
 > - **Bench maker:** build your own benches, have the solver check they can be solved, and share them as codes.
 > - **Community benches:** the best player benches ship in the game, with credit.
 > - A free bench with every part unlimited
@@ -47,3 +47,4 @@ Everything to paste into the itch.io "Create new project" form. Images are in th
 ## Updating the game later
 
 Either upload a new zip by hand, or let GitHub do it: every push to `main` rebuilds and pushes to itch with butler (see the README, "Publish on itch.io").
+

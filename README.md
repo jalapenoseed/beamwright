@@ -60,7 +60,11 @@ The light is genuinely ray-traced: each source fires five parallel rays, and eve
 | Prism (white light into six bands) | Diamond (n ≈ 2.4, trapped light comes out as "fire") |
 | | Hot-air mirage (a gradient-index zone that curves light upward) |
 
-There are 22 benches in two chapters, plus a **Free bench** sandbox with every part unlimited and a **bench maker** for your own.
+There are 32 benches in three chapters, plus a **Free bench** sandbox with every part unlimited and a **bench maker** for your own.
+
+## Chapter III · Masterworks
+
+Ten advanced 11 × 8 benches combine winding corridors, three-colour routing, split-beam power budgets, paired pinholes, returning light, incomplete fiber networks and spectral locks. Open **choose bench → chapter III → Switchback** to start immediately. The remaining Masterworks benches unlock in order; existing progress is preserved. Each map includes a verified step-by-step hint solution.
 
 ## Intro, music and trailer
 
@@ -116,7 +120,7 @@ The game keeps progress and your own benches in the browser's local storage, whi
 src/
   index.html   markup and styles; the build inlines everything into it
   engine.js    the optics engine: scene building, ray intersection, refraction, dispersion
-  levels.js    all 22 benches
+  levels.js    all 32 benches
   game.js      state, input, menus, level flow, and the 2D layers
   maker.js     the bench maker: tools, inspector, settings, check, submit
   community.js community benches in the picker, playing and remixing them
@@ -172,3 +176,4 @@ Code is released under the MIT License (see `LICENSE`).
 ## Skins and readability (v1.1)
 
 Choose **skins & readability** on the title screen or in the pause menu. Brushed Steel is the brighter default; Amber Lab, Ocean and High Contrast are also available. The beam-glow slider reduces bloom without changing optical beam colours. Preferences save on the current device when storage is available. Phone controls have larger targets and a separate row for the full bench name.
+

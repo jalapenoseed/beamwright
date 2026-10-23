@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 20
       - name: Verify every bench is solvable
-        run: npm run verify
+        run: npm test
       - name: Build the game and the itch.io package
         run: npm run itch
       - name: Check skins and phone layout in Chromium
@@ -33,6 +33,7 @@ jobs:
           npx playwright install --with-deps chromium
           node tools/check-appearance.js
           node tools/check-touch.js
+          node tools/check-masterworks.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -82,3 +83,4 @@ jobs:
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
           ITCH_GAME: ${{ vars.ITCH_GAME }}
+

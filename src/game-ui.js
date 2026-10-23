@@ -84,13 +84,15 @@ $('#levelGrid').addEventListener('keydown', e => {
 
 // ---------- screens ----------
 function firstOpen() { for (let i = 0; i < LEVELS.length; i++) if (!progress[i]) return i; return LEVELS.length - 1; }
-function unlocked(i) { return i === 0 || i === CH2 || progress[i - 1] || progress[i]; }
+function unlocked(i) { return i === 0 || !!LEVELS[i].chapter || progress[i - 1] || progress[i]; }
 function showLevels() {
   const g = $('#levelGrid'); g.innerHTML = '';
+  $('#levelCount').textContent = `optics lab · ${LEVELS.length} benches`;
   LEVELS.forEach((lv, i) => {
-    if (i === 0 || i === CH2) {
+    if (i === 0 || lv.chapter) {
       const hd = document.createElement('div'); hd.className = 'chap etch';
-      hd.innerHTML = i === 0 ? '<span>chapter I</span>The Bench' : '<span>chapter II</span>Exotic Optics';
+      const chapter = CHAPTERS[lv.chapter || 1];
+      hd.innerHTML = `<span>chapter ${chapter.numeral}</span>${chapter.name}`;
       g.appendChild(hd);
     }
     const b = document.createElement('button'); b.className = 'slot'; b.dataset.plate = 'pocket'; b.disabled = !unlocked(i);
@@ -151,3 +153,4 @@ function start(data) {
   else if (data.screen === 'title') toTitle();
   requestAnimationFrame(frame);
 }
+
